@@ -78,7 +78,7 @@
     </div>
 
     <!-- 2FA modal -->
-    <div class="modal-overlay" id="totp-modal" style="display:none;">
+    <div class="modal-overlay" id="totp-modal">
         <div class="modal">
             <div class="modal-header">
                 <span class="modal-title">Two-Factor Authentication</span>
@@ -126,12 +126,12 @@
       pendingTotpToken = token;
       totpInput.value = '';
       totpErr.style.display = 'none';
-      totpModal.style.display = 'flex';
+      totpModal.classList.add('open');
       setTimeout(() => totpInput.focus(), 50);
     }
 
     function closeTotpModal() {
-      totpModal.style.display = 'none';
+      totpModal.classList.remove('open');
       pendingTotpToken = null;
       btn.disabled = false;
       btn.textContent = 'Sign in';
