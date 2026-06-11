@@ -3,11 +3,6 @@
     "version": "1.0.0",
     "description": "GFTV HelloQueue – Virtual Queue Management System",
     "private": true,
-    "scripts": {
-        "dev": "vercel dev",
-        "build": "echo 'No build step required'",
-        "lint": "eslint api/**/*.js"
-    },
     "dependencies": {
         "@supabase/supabase-js": "^2.39.3",
         "bcryptjs": "^2.4.3",
@@ -18,8 +13,5 @@
     },
     "devDependencies": {
         "eslint": "^8.57.0"
-    },
-    "engines": {
-        "node": ">=18.x"
     }
 }
