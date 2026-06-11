@@ -17,7 +17,8 @@ export default async function handler(req, res) {
 
     const {
         username,
-        password
+        password,
+        device_token,
     } = req.body || {};
     if (!username || !password) {
         return res.status(400).json({
@@ -64,7 +65,30 @@ export default async function handler(req, res) {
             .eq('id', user.id);
     }
 
-    // If TOTP is enabled, issue a totp_challenge instead of a full session
+    // If TOTP is enabled, check for a valid trusted device token first
+    if (user.totp_secret) {
+        if (device_token) {
+            const { data: trusted } = await supabase
+                .from('gftvhello_trusted_devices')
+                .select('id, expires_at')
+                .eq('user_id', user.id)
+                .eq('device_token', device_token)
+                .single();
+
+            if (trusted && new Date(trusted.expires_at) > new Date()) {
+                // Trusted device — skip TOTP, issue session directly
+                const token = uuidv4();
+                const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+                await supabase.from('gftvhello_sessions').insert({ user_id: user.id, token, expires_at: expiresAt });
+                return res.status(200).json({
+                    token,
+                    expires_at: expiresAt,
+                    user: { id: user.id, username: user.username, display_name: user.display_name, is_admin: user.is_admin, is_editor: user.is_editor },
+                });
+            }
+        }
+    }
+
     if (user.totp_secret) {
         const challengeToken = uuidv4();
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();

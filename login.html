@@ -95,6 +95,10 @@
                     <button type="button" class="btn btn-ghost btn-sm" id="totp-toggle-backup">Use a backup code instead</button>
                 </div>
                 <div id="totp-error" style="color:var(--status-error);font-size:0.85rem;margin-bottom:12px;display:none;"></div>
+                <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px;cursor:pointer;font-size:0.875rem;">
+                    <input type="checkbox" id="totp-trust-device" />
+                    Trust this device for 30 days
+                </label>
                 <button class="btn btn-primary w-full" id="totp-submit-btn">Verify</button>
                 <button class="btn btn-ghost w-full" id="totp-cancel-btn" style="margin-top:8px;">Back to login</button>
             </div>
@@ -189,10 +193,14 @@
       totpBtn.disabled = true;
       totpBtn.textContent = 'Verifying…';
       try {
+        const trustDevice = document.getElementById('totp-trust-device').checked;
         const data = await api('/auth/totp-verify', {
           method: 'POST',
-          body: { totp_token: pendingTotpToken, code },
+          body: { totp_token: pendingTotpToken, code, trust_device: trustDevice },
         });
+        if (data.device_token) {
+          localStorage.setItem('hq_device_token', data.device_token);
+        }
         saveAuth(data.token, data.user);
         window.location.href = '/dashboard';
       } catch (err) {
@@ -220,6 +228,7 @@
           body: {
             username: document.getElementById('username').value.trim(),
             password: document.getElementById('password').value,
+            device_token: localStorage.getItem('hq_device_token') || undefined,
           },
         });
 

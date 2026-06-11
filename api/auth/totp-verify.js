@@ -8,7 +8,7 @@ export default async function handler(req, res) {
     if (handleCors(req, res)) return;
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-    const { totp_token, code } = req.body || {};
+    const { totp_token, code, trust_device } = req.body || {};
     if (!totp_token || !code) return res.status(400).json({ error: 'Missing token or code' });
 
     const { data: challenge, error } = await supabase
@@ -71,9 +71,21 @@ export default async function handler(req, res) {
         expires_at: expiresAt,
     });
 
+    let device_token = null;
+    if (trust_device) {
+        device_token = uuidv4();
+        const deviceExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        await supabase.from('gftvhello_trusted_devices').insert({
+            user_id: user.id,
+            device_token,
+            expires_at: deviceExpiry,
+        });
+    }
+
     return res.status(200).json({
         token,
         expires_at: expiresAt,
+        device_token,
         user: {
             id: user.id,
             username: user.username,
