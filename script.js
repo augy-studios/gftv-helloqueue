@@ -185,10 +185,7 @@ export function buildTopbar(container) {
           <span class="brand-badge">GFTV</span>
         </a>
         <div class="topbar-actions">
-          <a href="https://donate.stripe.com/28o2akeAr3hv0DK6oo" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">
-            ${Icons.coffee} Buy Augy a Coffee
-          </a>
-          <button class="btn-icon" id="theme-btn" title="Change theme">${Icons.palette}</button>
+<button class="btn-icon" id="theme-btn" title="Change theme">${Icons.palette}</button>
           ${user ? `
             <span class="text-sm text-muted">${user.display_name}</span>
             <button class="btn-icon" id="logout-btn" title="Log out">${Icons.logout}</button>
