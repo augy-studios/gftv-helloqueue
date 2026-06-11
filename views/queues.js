@@ -23,7 +23,6 @@ async function loadMyQueues(container, user, navigate) {
     if (!listEl) return;
 
     try {
-        // Fetch all events the user can access
         const {
             events
         } = await api('/events');
@@ -32,7 +31,6 @@ async function loadMyQueues(container, user, navigate) {
             return;
         }
 
-        // For each event, fetch queues
         const allQueues = [];
         for (const ev of events) {
             const {
@@ -41,7 +39,6 @@ async function loadMyQueues(container, user, navigate) {
                 queues: []
             }));
             for (const q of queues) {
-                // Check if user has any permission on this queue
                 const {
                     permissions
                 } = await api(`/queues/${q.id}/permissions`).catch(() => ({
@@ -83,9 +80,8 @@ async function loadMyQueues(container, user, navigate) {
           </span>
         </div>
 
-        <!-- Live counts -->
         <div id="counts-${q.id}" class="glass-sm" style="padding:8px 12px;margin-top:10px;display:flex;gap:14px;font-size:0.8rem;">
-          <span>⏳ Loading…</span>
+          <span>${Icons.hourglass} Loading…</span>
         </div>
 
         <div class="event-card-footer" style="margin-top:12px;">
@@ -99,12 +95,10 @@ async function loadMyQueues(container, user, navigate) {
       </div>
     `).join('');
 
-        // Load live counts per queue
         for (const q of allQueues) {
             loadQueueCounts(q.id, q.event_access_code, q.access_code);
         }
 
-        // Attach operate buttons
         listEl.querySelectorAll('.operate-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 import('/views/queue-operator.js').then(m => {
@@ -129,10 +123,10 @@ async function loadQueueCounts(queueId, eventCode, queueCode) {
     try {
         const data = await fetch(`/api/display/${eventCode}/${queueCode}`).then(r => r.json());
         el.innerHTML = `
-      <span style="color:var(--status-serving);">🟢 Serving: ${data.serving?.length || 0}</span>
-      <span style="color:var(--status-waiting);">⏳ Waiting: ${data.total_in_queue || 0}</span>
-      <span style="color:var(--status-missed);">⚠️ Missed: ${data.missed?.length || 0}</span>
-      <span style="color:var(--text-muted);">✅ Done: ${data.total_served || 0}</span>
+      <span style="color:var(--status-serving);"><svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><circle cx="5" cy="5" r="5"/></svg> Serving: ${data.serving?.length || 0}</span>
+      <span style="color:var(--status-waiting);">${Icons.hourglass} Waiting: ${data.total_in_queue || 0}</span>
+      <span style="color:var(--status-missed);">${Icons.alertTriangle} Missed: ${data.missed?.length || 0}</span>
+      <span style="color:var(--text-muted);">${Icons.check} Done: ${data.total_served || 0}</span>
     `;
     } catch {
         el.innerHTML = `<span class="text-muted">Couldn't load live counts</span>`;

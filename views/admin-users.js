@@ -67,7 +67,7 @@ async function loadUsers(currentUser, filter, search = '') {
         if (filter === 'pending') filtered = users.filter(u => !u.is_approved);
 
         if (!filtered.length) {
-            wrap.innerHTML = `<div class="empty-state">${filter === 'pending' ? 'No pending accounts 🎉' : 'No users found.'}</div>`;
+            wrap.innerHTML = `<div class="empty-state">${filter === 'pending' ? 'No pending accounts' : 'No users found.'}</div>`;
             return;
         }
 

@@ -2,7 +2,6 @@
 <html lang="en">
 
 <head>
-    <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-FMCYFTFPEL"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
@@ -33,7 +32,6 @@
     <link rel="stylesheet" href="/style.css">
     <meta name="theme-color" content="#ccffcc" />
 
-    <!-- Embed Image -->
     <link rel="apple-touch-icon" href="/GHQ-main.png">
     <link rel="icon" href="/favicon.ico">
     <link rel="shortcut icon" href="/favicon.ico">
@@ -57,7 +55,7 @@
         </div>
     </div>
 
-    <!-- Telegram connect modal -->
+    <!-- Telegram connect modal  -->
     <div class="modal-overlay" id="tg-connect-modal">
         <div class="modal">
             <div class="modal-header">
@@ -74,7 +72,7 @@
                     <div id="tg-command-box" style="background:var(--surface-2,#f5f5f5);border-radius:var(--radius-sm);padding:16px;text-align:center;margin-bottom:16px;cursor:pointer;user-select:none;" title="Tap to copy">
                         <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;">Tap to copy command:</div>
                         <div id="tg-command-display" style="font-family:monospace;font-size:1.1rem;font-weight:bold;letter-spacing:0.05em;"></div>
-                        <div id="tg-copy-hint" style="font-size:0.75rem;color:var(--text-muted);margin-top:6px;">📋 Copy</div>
+                        <div id="tg-copy-hint" style="font-size:0.75rem;color:var(--text-muted);margin-top:6px;">Copy</div>
                     </div>
                     <a id="tg-deeplink-btn" href="#" target="_blank" class="btn btn-primary w-full" style="margin-bottom:8px;">
                         Open Telegram Bot ↗
@@ -107,16 +105,14 @@
         if (!eventCode || !queueCode) {
             document.getElementById('attendee-content').innerHTML = `
                 <div class="glass queue-card" style="text-align:center;padding:32px;">
-                    <div style="font-size:2rem;">😕</div>
+                    <div style="margin:8px 0;">${Icons.meh.replace('width="18" height="18"', 'width="48" height="48"')}</div>
                     <div style="margin-top:10px;">Invalid queue link.</div>
                 </div>`;
         } else {
             initAttendee(eventCode, queueCode);
         }
 
-        // ── Token helpers ──────────────────────────────────────────────────────────
-        // Attendee sessions are stored separately from full account sessions so that
-        // the queue page works without a dashboard login.
+        // Token helpers — stored separately so the queue page works without a dashboard login.
 
         function getAttendeeToken() {
             return localStorage.getItem('hq_attendee_token') || getToken();
@@ -149,7 +145,7 @@
             return data;
         }
 
-        // ── Init ──────────────────────────────────────────────────────────────────
+        // Init
         let pollTimer = null;
         let queueId = null;
 
@@ -163,7 +159,7 @@
             } catch {
                 document.getElementById('attendee-content').innerHTML = `
                     <div class="glass queue-card" style="text-align:center;padding:32px;">
-                        <div style="font-size:2rem;">❌</div>
+                        <div style="margin:8px 0;">${Icons.x.replace('width="15" height="15"', 'width="48" height="48"')}</div>
                         <div style="margin-top:10px;">Queue not found.</div>
                     </div>`;
                 return;
@@ -177,7 +173,6 @@
             const content = document.getElementById('attendee-content');
             if (!content) return;
 
-            // Re-fetch display data each poll cycle to keep stats live
             try {
                 const res = await fetch(`/api/display/${eventCode}/${queueCode}`);
                 if (res.ok) {
@@ -201,7 +196,6 @@
                 renderStatusUI(data, displayData, queueId);
             } catch (err) {
                 if (err.message === 'Telegram account not linked') {
-                    // Full account user without Telegram link — fallback to connect UI
                     renderConnectUI(displayData);
                     return;
                 }
@@ -211,7 +205,7 @@
             }
         }
 
-        // ── Render: status (in-queue view) ────────────────────────────────────────
+        // Status view
         function renderStatusUI(data, display, qId) {
             const content = document.getElementById('attendee-content');
             if (!content) return;
@@ -236,9 +230,9 @@
 
             let statusBanner = '';
             if (isServing) {
-                statusBanner = `<div style="background:var(--status-serving);color:#fff;padding:12px;border-radius:var(--radius-sm);text-align:center;margin-bottom:14px;font-size:1.05rem;">🎉 It's your turn! Proceed to the entrance.</div>`;
+                statusBanner = `<div style="background:var(--status-serving);color:#fff;padding:12px;border-radius:var(--radius-sm);text-align:center;margin-bottom:14px;font-size:1.05rem;">${Icons.star} It's your turn! Proceed to the entrance.</div>`;
             } else if (isMissed) {
-                statusBanner = `<div style="background:var(--status-missed);color:#fff;padding:12px;border-radius:var(--radius-sm);text-align:center;margin-bottom:14px;">😔 You missed your turn. You can rejoin below.</div>`;
+                statusBanner = `<div style="background:var(--status-missed);color:#fff;padding:12px;border-radius:var(--radius-sm);text-align:center;margin-bottom:14px;">${Icons.frown} You missed your turn. You can rejoin below.</div>`;
             }
 
             content.innerHTML = `
@@ -302,7 +296,7 @@
                 ` : `
                     <div class="glass queue-card">
                         <div style="text-align:center;padding:10px 0 16px;">
-                            <div style="font-size:2.5rem;">🎟️</div>
+                            <div style="margin-bottom:4px;">${Icons.ticket.replace('width="20" height="20"', 'width="48" height="48"')}</div>
                             <div style="margin:10px 0;font-size:1.05rem;">Join the queue</div>
                             <div class="text-sm text-muted">
                                 ${display?.total_in_queue || 0} people waiting &nbsp;·&nbsp; ~${display?.est_wait_minutes || 0} min
@@ -318,7 +312,6 @@
                 `}
             `;
 
-            // Wire up events
             document.getElementById('toggle-serving')?.addEventListener('change', async (e) => {
                 await queueApi(`/queues/${qId}/notify-prefs`, { method: 'PUT', body: { notify_serving: e.target.checked } }).catch(() => {});
             });
@@ -360,7 +353,7 @@
             });
         }
 
-        // ── Render: connect UI (no session) ───────────────────────────────────────
+        // Connect UI
         function renderConnectUI(display) {
             const content = document.getElementById('attendee-content');
             if (!content) return;
@@ -378,7 +371,7 @@
                     <div class="info-row"><span class="info-row-label">Est. wait</span><span class="info-row-value">~${display?.est_wait_minutes || 0} min</span></div>
                 </div>
                 <div class="glass queue-card" style="margin-top:12px;text-align:center;padding:24px;">
-                    <div style="font-size:2rem;margin-bottom:10px;">✈️</div>
+                    <div style="margin-bottom:10px;">${Icons.plane.replace('width="18" height="18"', 'width="40" height="40"')}</div>
                     <div style="margin-bottom:6px;font-size:1rem;font-weight:600;">Join via Telegram</div>
                     <div style="margin-bottom:16px;font-size:0.88rem;color:var(--text-muted);">
                         Connect your Telegram to join and get turn notifications.
@@ -390,7 +383,7 @@
             document.getElementById('open-tg-connect-btn').addEventListener('click', openConnectModal);
         }
 
-        // ── Telegram connect modal ─────────────────────────────────────────────────
+        // Connect modal
         let pollCodeTimer = null;
 
         function openConnectModal() {
@@ -432,14 +425,14 @@
                 document.getElementById('tg-command-box').onclick = async () => {
                     try {
                         await navigator.clipboard.writeText(command);
-                        document.getElementById('tg-copy-hint').textContent = '✅ Copied!';
-                        setTimeout(() => { document.getElementById('tg-copy-hint').textContent = '📋 Copy'; }, 2000);
+                        document.getElementById('tg-copy-hint').innerHTML = `${Icons.check} Copied!`;
+                        setTimeout(() => { document.getElementById('tg-copy-hint').textContent = 'Copy'; }, 2000);
                     } catch {
                         document.getElementById('tg-copy-hint').textContent = 'Copy manually';
                     }
                 };
 
-                // Poll for completion
+                // poll until confirmed
                 pollCodeTimer = setInterval(async () => {
                     try {
                         const pollRes = await fetch(`/api/auth/attendee-login?code=${code}`);
@@ -467,7 +460,6 @@
             }
         });
 
-        // Close modal on backdrop click
         document.getElementById('tg-connect-modal').addEventListener('click', (e) => {
             if (e.target === e.currentTarget) closeConnectModal();
         });

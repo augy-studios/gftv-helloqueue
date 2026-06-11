@@ -45,8 +45,7 @@ async function loadOperatorView(container, user, navigate, queueId, eventId, sil
             container.innerHTML = buildOperatorHTML(queue, servingList, waitingList, missedList, completedList, can_operate, is_queue_admin, user, eventId);
             attachOperatorEvents(container, user, navigate, queueId, eventId, queue);
         } else {
-            // Soft-update just the columns and counts
-            updateCounts(servingList, waitingList, missedList, completedList);
+                updateCounts(servingList, waitingList, missedList, completedList);
             updateColumns(container, servingList, waitingList, missedList, completedList);
         }
     } catch (err) {
@@ -66,20 +65,16 @@ function buildOperatorHTML(queue, serving, waiting, missed, completed, can_opera
         </div>
       </div>
 
-      <!-- Operator Controls -->
       <div class="queue-operator-header">
         <div class="operator-controls">
-          <!-- Open/Close -->
           <button class="btn ${queue.status === 'open' ? 'btn-danger' : 'btn-success'} btn-sm" id="toggle-queue-btn">
             ${queue.status === 'open' ? `${Icons.x} Close Queue` : `${Icons.check} Open Queue`}
           </button>
 
-          <!-- Call Next -->
           <button class="btn btn-primary btn-sm" id="call-next-btn" ${queue.status !== 'open' ? 'disabled' : ''}>
             Call Next
           </button>
 
-          <!-- Batch call -->
           <div style="display:flex;align-items:center;gap:6px;">
             <select id="batch-count" class="btn-ghost" style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);font-family:Jua,sans-serif;font-size:0.88rem;">
               ${[2,3,4,5,10].map(n => `<option value="${n}">${n}</option>`).join('')}
@@ -87,14 +82,10 @@ function buildOperatorHTML(queue, serving, waiting, missed, completed, can_opera
             <button class="btn btn-ghost btn-sm" id="call-batch-btn" ${queue.status !== 'open' ? 'disabled' : ''}>Call Batch</button>
           </div>
 
-          <!-- Scanner -->
           <button class="btn btn-ghost btn-sm" id="open-scanner-btn">${Icons.scan} Scanner</button>
-
-          <!-- Display link -->
           <a href="/display/${queue.event_access_code || ''}/${queue.access_code}" target="_blank" class="btn btn-ghost btn-sm">${Icons.monitor} Display</a>
         </div>
 
-        <!-- Max serving -->
         <div class="max-serving-control">
           <span class="text-sm">Max Serving:</span>
           <button class="max-serving-btn" id="ms-minus">−</button>
@@ -103,7 +94,6 @@ function buildOperatorHTML(queue, serving, waiting, missed, completed, can_opera
         </div>
       </div>
 
-      <!-- Notifications sent counter -->
       <div class="glass-sm" style="padding:8px 14px;margin-bottom:14px;display:flex;align-items:center;gap:16px;font-size:0.82rem;color:var(--text-muted);">
         ${Icons.bell} Queue Code: <strong>${queue.access_code}</strong>
         &nbsp;·&nbsp; Serving: <span id="stat-serving">${serving.length}</span>/${queue.max_serving}
@@ -112,7 +102,6 @@ function buildOperatorHTML(queue, serving, waiting, missed, completed, can_opera
         &nbsp;·&nbsp; Done: <span id="stat-completed">${completed.length}</span>
       </div>
 
-      <!-- Queue columns -->
       <div class="queue-columns">
         ${buildCol('Serving', 'serving', serving, true)}
         ${buildCol('In Queue', 'waiting', waiting, false)}
@@ -120,7 +109,6 @@ function buildOperatorHTML(queue, serving, waiting, missed, completed, can_opera
         ${buildCol('Completed', 'completed', completed, false)}
       </div>
 
-      <!-- Scanner modal -->
       <div class="modal-overlay" id="scanner-modal">
         <div class="modal" style="max-width:420px;">
           <div class="modal-header">
@@ -143,7 +131,6 @@ function buildOperatorHTML(queue, serving, waiting, missed, completed, can_opera
       </div>
 
       ${is_queue_admin ? `
-      <!-- Permissions modal -->
       <div class="modal-overlay" id="perms-modal">
         <div class="modal">
           <div class="modal-header">
@@ -226,7 +213,6 @@ function updateColumns(container, serving, waiting, missed, completed) {
         col.innerHTML = entries.length ?
             entries.map(e => buildEntryCard(e, status)).join('') :
             `<div class="empty-state" style="padding:16px 0;font-size:0.8rem;">Empty</div>`;
-        // Re-attach per-card events
         attachCardEvents(container, id, status);
     };
     update('col-serving', serving, 'serving');
@@ -239,7 +225,7 @@ function updateColumns(container, serving, waiting, missed, completed) {
 }
 
 function attachCardEvents(container, colId, queueId) {
-    // These events are delegated; handled in attachOperatorEvents
+    // events delegated to attachOperatorEvents
 }
 
 function attachOperatorEvents(container, user, navigate, queueId, eventId, queue) {
@@ -254,7 +240,6 @@ function attachOperatorEvents(container, user, navigate, queueId, eventId, queue
         }));
     });
 
-    // Toggle queue open/close
     document.getElementById('toggle-queue-btn')?.addEventListener('click', async () => {
         const newStatus = queue.status === 'open' ? 'closed' : 'open';
         try {
@@ -272,7 +257,6 @@ function attachOperatorEvents(container, user, navigate, queueId, eventId, queue
         }
     });
 
-    // Call next
     document.getElementById('call-next-btn')?.addEventListener('click', async () => {
         try {
             const {
@@ -290,7 +274,6 @@ function attachOperatorEvents(container, user, navigate, queueId, eventId, queue
         }
     });
 
-    // Call batch
     document.getElementById('call-batch-btn')?.addEventListener('click', async () => {
         const count = parseInt(document.getElementById('batch-count').value);
         try {
@@ -310,7 +293,6 @@ function attachOperatorEvents(container, user, navigate, queueId, eventId, queue
         }
     });
 
-    // Max serving
     let maxServing = queue.max_serving;
     document.getElementById('ms-minus')?.addEventListener('click', async () => {
         if (maxServing <= 1) return;
@@ -334,7 +316,6 @@ function attachOperatorEvents(container, user, navigate, queueId, eventId, queue
         }).catch(() => {});
     });
 
-    // Delegate entry card actions
     container.addEventListener('click', async (e) => {
         const markDone = e.target.closest('.mark-done-btn');
         if (markDone) {
@@ -371,7 +352,6 @@ function attachOperatorEvents(container, user, navigate, queueId, eventId, queue
         }
     });
 
-    // Scanner
     let stream = null;
     document.getElementById('open-scanner-btn')?.addEventListener('click', async () => {
         document.getElementById('scanner-modal').classList.add('open');

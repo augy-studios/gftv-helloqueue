@@ -1,5 +1,4 @@
-// Run on Debian VPS: node index.js
-// Required env vars: TELEGRAM_BOT_TOKEN, SUPABASE_URL, SUPABASE_SERVICE_KEY, WEBAPP_URL
+// node index.js — requires TELEGRAM_BOT_TOKEN, SUPABASE_URL, SUPABASE_SERVICE_KEY, WEBAPP_URL
 import 'dotenv/config';
 import TelegramBot from 'node-telegram-bot-api';
 import {
@@ -14,12 +13,11 @@ const WEBAPP_URL = process.env.WEBAPP_URL || 'https://queue.gftv.asia';
 
 console.log('GFTVHelloQueueBot started.');
 
-// ─── /start ──────────────────────────────────────────────────────────────────
+// /start
 bot.onText(/\/start(?:\s+(.+))?/, async (msg, match) => {
     const chatId = msg.chat.id;
     const param = match?.[1]?.trim();
 
-    // Deep link: /start attend_CODE
     if (param?.startsWith('attend_')) {
         const code = param.replace('attend_', '').toUpperCase();
         await handleAttendLogin(chatId, msg.from, code);
@@ -59,7 +57,7 @@ bot.onText(/\/start(?:\s+(.+))?/, async (msg, match) => {
     );
 });
 
-// ─── /help ───────────────────────────────────────────────────────────────────
+// /help
 bot.onText(/\/help/, async (msg) => {
     await bot.sendMessage(msg.chat.id,
         `*GFTV HelloQueue Bot Commands*\n\n` +
@@ -75,7 +73,7 @@ bot.onText(/\/help/, async (msg) => {
     );
 });
 
-// ─── /attend <CODE> ──────────────────────────────────────────────────────────
+// /attend <CODE>
 bot.onText(/\/attend(?:\s+([A-Z0-9]+))?/i, async (msg, match) => {
     const chatId = msg.chat.id;
     const code = match?.[1]?.toUpperCase();
@@ -111,7 +109,7 @@ async function handleAttendLogin(chatId, from, code) {
     const displayName = [from.first_name, from.last_name].filter(Boolean).join(' ') || from.username || 'Attendee';
     const telegramUsername = from.username || null;
 
-    // Kill any existing attendee sessions for this account (single-session enforcement)
+    // enforce single session
     await supabase
         .from('gftvqueue_attendee_sessions')
         .delete()
@@ -143,7 +141,7 @@ async function handleAttendLogin(chatId, from, code) {
     );
 }
 
-// ─── /link <OTP> ─────────────────────────────────────────────────────────────
+// /link <OTP>
 bot.onText(/\/link(?:\s+(\d{6}))?/, async (msg, match) => {
     const chatId = msg.chat.id;
     const otp = match?. [1];
@@ -156,7 +154,6 @@ bot.onText(/\/link(?:\s+(\d{6}))?/, async (msg, match) => {
         );
     }
 
-    // Validate OTP
     const now = new Date().toISOString();
     const {
         data: otpRow
@@ -176,7 +173,6 @@ bot.onText(/\/link(?:\s+(\d{6}))?/, async (msg, match) => {
         return bot.sendMessage(chatId, '❌ This code has expired. Please generate a new one from HelloQueue.');
     }
 
-    // Check if this Telegram account is already linked to another user
     const {
         data: existingLink
     } = await supabase
@@ -189,7 +185,6 @@ bot.onText(/\/link(?:\s+(\d{6}))?/, async (msg, match) => {
         return bot.sendMessage(chatId, '⚠️ This Telegram account is already linked to a different HelloQueue account. Use /unlink first.');
     }
 
-    // Get user info
     const {
         data: user
     } = await supabase
@@ -202,7 +197,6 @@ bot.onText(/\/link(?:\s+(\d{6}))?/, async (msg, match) => {
         return bot.sendMessage(chatId, '❌ Could not find the HelloQueue account. Please try again.');
     }
 
-    // Upsert the link
     await supabase.from('gftvqueue_telegram_links').upsert({
         user_id: otpRow.user_id,
         telegram_user_id: chatId,
@@ -212,7 +206,6 @@ bot.onText(/\/link(?:\s+(\d{6}))?/, async (msg, match) => {
         onConflict: 'user_id'
     });
 
-    // Mark OTP used
     await supabase
         .from('gftvqueue_telegram_otps')
         .update({
@@ -227,7 +220,7 @@ bot.onText(/\/link(?:\s+(\d{6}))?/, async (msg, match) => {
     );
 });
 
-// ─── /unlink ─────────────────────────────────────────────────────────────────
+// /unlink
 bot.onText(/\/unlink/, async (msg) => {
     const chatId = msg.chat.id;
 
@@ -259,7 +252,7 @@ bot.onText(/\/unlink/, async (msg) => {
     });
 });
 
-// ─── /joinqueue ──────────────────────────────────────────────────────────────
+// /joinqueue
 bot.onText(/\/joinqueue/, async (msg) => {
     await handleJoinQueue(msg.chat.id, msg.from);
 });
@@ -282,7 +275,6 @@ async function handleJoinQueue(chatId, from) {
         );
     }
 
-    // List active events and open queues
     const {
         data: events
     } = await supabase
@@ -294,7 +286,6 @@ async function handleJoinQueue(chatId, from) {
         return bot.sendMessage(chatId, '📭 No active events with open queues right now. Check back later!');
     }
 
-    // For each event, get open queues
     const openQueues = [];
     for (const event of events) {
         const {
@@ -333,7 +324,7 @@ async function handleJoinQueue(chatId, from) {
     });
 }
 
-// ─── /status ─────────────────────────────────────────────────────────────────
+// /status
 bot.onText(/\/status/, async (msg) => {
     const chatId = msg.chat.id;
 
@@ -368,7 +359,7 @@ bot.onText(/\/status/, async (msg) => {
     });
 });
 
-// ─── /leavequeue ─────────────────────────────────────────────────────────────
+// /leavequeue
 bot.onText(/\/leavequeue/, async (msg) => {
     const chatId = msg.chat.id;
 
@@ -414,7 +405,7 @@ bot.onText(/\/leavequeue/, async (msg) => {
     }
 });
 
-// ─── /notify ─────────────────────────────────────────────────────────────────
+// /notify
 bot.onText(/\/notify/, async (msg) => {
     const chatId = msg.chat.id;
 
@@ -453,7 +444,7 @@ bot.onText(/\/notify/, async (msg) => {
     }
 });
 
-// ─── Callback query handler ───────────────────────────────────────────────────
+// Callback query handler
 bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
     const data = query.data;
@@ -480,7 +471,6 @@ bot.on('callback_query', async (query) => {
             from: query.from,
             text: '/status'
         });
-        // Manually trigger status
         const {
             data: entries
         } = await supabase
@@ -543,7 +533,7 @@ bot.on('callback_query', async (query) => {
     }
 });
 
-// ─── Join queue by ID ─────────────────────────────────────────────────────────
+// Join queue by ID
 async function handleJoinQueueById(chatId, queueId) {
     const {
         data: link
@@ -575,7 +565,6 @@ async function handleJoinQueueById(chatId, queueId) {
         return bot.sendMessage(chatId, '❌ This queue is no longer open.');
     }
 
-    // Check already in queue
     const {
         data: existing
     } = await supabase
@@ -590,7 +579,6 @@ async function handleJoinQueueById(chatId, queueId) {
         return bot.sendMessage(chatId, `⚠️ You're already in this queue as #${existing.queue_number}.`);
     }
 
-    // Get next number
     const {
         data: lastEntry
     } = await supabase
@@ -648,7 +636,7 @@ async function handleJoinQueueById(chatId, queueId) {
     );
 }
 
-// ─── Error handling ───────────────────────────────────────────────────────────
+// Error handling
 bot.on('polling_error', (error) => {
     console.error('Polling error:', error.code, error.message);
 });
