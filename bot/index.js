@@ -63,14 +63,14 @@ bot.onText(/\/start(?:\s+(.+))?/, async (msg, match) => {
 bot.onText(/\/help/, async (msg) => {
     await bot.sendMessage(msg.chat.id,
         `*GFTV HelloQueue Bot Commands*\n\n` +
-        `🎟️ */attend <CODE>* — Connect your Telegram to a queue session\\. Get the code from the queue page\\.\n` +
-        `🔗 */link <OTP>* — Link your Telegram to a HelloQueue dashboard account\\. Get the OTP from dashboard settings\\.\n` +
-        `🔓 */unlink* — Unlink your Telegram from your dashboard account\\.\n` +
-        `📋 */status* — Check your current queue status\\.\n` +
-        `🚪 */leavequeue* — Leave your current queue\\.\n` +
-        `🔔 */notify* — Toggle turn and next\\-in\\-line notifications\\.\n` +
-        `❓ */help* — Show this message\\.`, {
-            parse_mode: 'MarkdownV2'
+        `🎟️ /attend <CODE> — Connect your Telegram to a queue session. Get the code from the queue page.\n` +
+        `🔗 /link <OTP> — Link your Telegram to a HelloQueue dashboard account. Get the OTP from dashboard settings.\n` +
+        `🔓 /unlink — Unlink your Telegram from your dashboard account.\n` +
+        `📋 /status — Check your current queue status.\n` +
+        `🚪 /leavequeue — Leave your current queue.\n` +
+        `🔔 /notify — Toggle turn and next-in-line notifications.\n` +
+        `❓ /help — Show this message.`, {
+            parse_mode: 'Markdown'
         }
     );
 });
