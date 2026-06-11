@@ -15,8 +15,17 @@ const WEBAPP_URL = process.env.WEBAPP_URL || 'https://queue.gftv.asia';
 console.log('GFTVHelloQueueBot started.');
 
 // ─── /start ──────────────────────────────────────────────────────────────────
-bot.onText(/\/start/, async (msg) => {
+bot.onText(/\/start(?:\s+(.+))?/, async (msg, match) => {
     const chatId = msg.chat.id;
+    const param = match?.[1]?.trim();
+
+    // Deep link: /start attend_CODE
+    if (param?.startsWith('attend_')) {
+        const code = param.replace('attend_', '').toUpperCase();
+        await handleAttendLogin(chatId, msg.from, code);
+        return;
+    }
+
     const name = msg.from.first_name || 'there';
 
     await bot.sendMessage(chatId,
@@ -25,12 +34,12 @@ bot.onText(/\/start/, async (msg) => {
             reply_markup: {
                 inline_keyboard: [
                     [{
-                        text: '🔗 Link my account',
-                        callback_data: 'cmd_link'
+                        text: '🎟️ Connect to a queue',
+                        callback_data: 'cmd_attend'
                     }],
                     [{
-                        text: '🎟️ Join a queue',
-                        callback_data: 'cmd_joinqueue'
+                        text: '🔗 Link dashboard account',
+                        callback_data: 'cmd_link'
                     }],
                     [{
                         text: '📋 My queue status',
@@ -54,18 +63,85 @@ bot.onText(/\/start/, async (msg) => {
 bot.onText(/\/help/, async (msg) => {
     await bot.sendMessage(msg.chat.id,
         `*GFTV HelloQueue Bot Commands*\n\n` +
-        `/start - Show this menu\n` +
-        `/link <OTP> - Link your HelloQueue account using a 6-digit code\n` +
-        `/unlink - Unlink your HelloQueue account\n` +
-        `/joinqueue - Join an open queue at an active event\n` +
-        `/leavequeue - Leave your current queue\n` +
-        `/status - Check your current queue status\n` +
-        `/notify - Toggle notification settings\n` +
-        `/help - Show this help message`, {
-            parse_mode: 'Markdown'
+        `🎟️ */attend <CODE>* — Connect your Telegram to a queue session\\. Get the code from the queue page\\.\n` +
+        `🔗 */link <OTP>* — Link your Telegram to a HelloQueue dashboard account\\. Get the OTP from dashboard settings\\.\n` +
+        `🔓 */unlink* — Unlink your Telegram from your dashboard account\\.\n` +
+        `📋 */status* — Check your current queue status\\.\n` +
+        `🚪 */leavequeue* — Leave your current queue\\.\n` +
+        `🔔 */notify* — Toggle turn and next\\-in\\-line notifications\\.\n` +
+        `❓ */help* — Show this message\\.`, {
+            parse_mode: 'MarkdownV2'
         }
     );
 });
+
+// ─── /attend <CODE> ──────────────────────────────────────────────────────────
+bot.onText(/\/attend(?:\s+([A-Z0-9]+))?/i, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const code = match?.[1]?.toUpperCase();
+    if (!code) {
+        return bot.sendMessage(chatId,
+            '🎟️ To connect to a queue, open the queue page and tap *Connect Telegram* to get your code.', {
+                parse_mode: 'Markdown'
+            }
+        );
+    }
+    await handleAttendLogin(chatId, msg.from, code);
+});
+
+async function handleAttendLogin(chatId, from, code) {
+    const now = new Date().toISOString();
+
+    const { data: loginCode } = await supabase
+        .from('gftvqueue_attendee_login_codes')
+        .select('id, expires_at, used_at')
+        .eq('code', code)
+        .maybeSingle();
+
+    if (!loginCode) {
+        return bot.sendMessage(chatId, '❌ Invalid code. Please get a new one from the queue page.');
+    }
+    if (loginCode.expires_at < now) {
+        return bot.sendMessage(chatId, '⏰ This code has expired. Please get a new one from the queue page.');
+    }
+    if (loginCode.used_at) {
+        return bot.sendMessage(chatId, '✅ This code has already been used.');
+    }
+
+    const displayName = [from.first_name, from.last_name].filter(Boolean).join(' ') || from.username || 'Attendee';
+    const telegramUsername = from.username || null;
+
+    // Kill any existing attendee sessions for this account (single-session enforcement)
+    await supabase
+        .from('gftvqueue_attendee_sessions')
+        .delete()
+        .eq('telegram_user_id', chatId);
+
+    const { data: newSession, error } = await supabase
+        .from('gftvqueue_attendee_sessions')
+        .insert({
+            telegram_user_id: chatId,
+            telegram_username: telegramUsername,
+            display_name: displayName,
+        })
+        .select('token')
+        .single();
+
+    if (error || !newSession) {
+        return bot.sendMessage(chatId, '❌ Something went wrong. Please try again.');
+    }
+
+    await supabase
+        .from('gftvqueue_attendee_login_codes')
+        .update({ used_at: now, session_token: newSession.token })
+        .eq('id', loginCode.id);
+
+    await bot.sendMessage(chatId,
+        `✅ *You're connected!*\n\nYou can now go back to the queue page — it will load automatically.\n\nYou'll receive Telegram notifications here when it's your turn.`, {
+            parse_mode: 'Markdown'
+        }
+    );
+}
 
 // ─── /link <OTP> ─────────────────────────────────────────────────────────────
 bot.onText(/\/link(?:\s+(\d{6}))?/, async (msg, match) => {
@@ -384,7 +460,13 @@ bot.on('callback_query', async (query) => {
 
     await bot.answerCallbackQuery(query.id);
 
-    if (data === 'cmd_link') {
+    if (data === 'cmd_attend') {
+        await bot.sendMessage(chatId,
+            '🎟️ To connect to a queue, open the queue page on HelloQueue and tap *Connect Telegram* to get your code.', {
+                parse_mode: 'Markdown'
+            }
+        );
+    } else if (data === 'cmd_link') {
         await bot.sendMessage(chatId, '🔗 To link your account:\n\n1. Log into HelloQueue at ' + WEBAPP_URL + '\n2. Go to Profile → Link Telegram\n3. Get your 6-digit OTP\n4. Send me: `/link <your-code>`', {
             parse_mode: 'Markdown'
         });
