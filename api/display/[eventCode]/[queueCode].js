@@ -79,6 +79,7 @@ export default async function handler(req, res) {
             name: event.name
         },
         queue: {
+            id: queue.id,
             name: queue.name,
             status: queue.status
         },
