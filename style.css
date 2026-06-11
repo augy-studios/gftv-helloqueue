@@ -548,6 +548,14 @@ textarea:focus {
   box-sizing: border-box;
   border-radius: 14px;
   margin: 0 auto;
+  overflow: hidden;
+}
+
+/* Spinning conic gradient sits behind the QR image — only visible in the 4px padding gap */
+.qr-wrapper::before {
+  content: '';
+  position: absolute;
+  inset: -50%;
   background: conic-gradient(from 0deg, var(--brand), var(--status-serving), var(--brand));
   animation: spin-ring 2s linear infinite;
 }
@@ -559,6 +567,7 @@ textarea:focus {
   height: 100%;
   border-radius: 10px;
   object-fit: contain;
+  position: relative; /* stack above ::before */
 }
 
 @keyframes spin-ring {

@@ -34,7 +34,23 @@ export default async function handler(req, res) {
         return res.status(200).end();
     }
 
-    // Handle existing /link OTP flow (if this webhook replaces a previous handler)
+    // /start with no payload, or /help
+    if (text === '/start' || text === '/help') {
+        await sendTelegramMessage(chatId, [
+            `👋 *Welcome to GFTV HelloQueue!*`,
+            ``,
+            `Here's what I can do:`,
+            ``,
+            `🎟 */attend \\<CODE\\>* — Connect your Telegram to a queue session\\. Get the code from the queue page\\.`,
+            `🔗 */link \\<OTP\\>* — Link your Telegram to a HelloQueue dashboard account\\. Get the OTP from your dashboard settings\\.`,
+            `❓ */help* — Show this message\\.`,
+            ``,
+            `To join a queue, visit the queue link and tap *Connect Telegram*\\.`,
+        ].join('\n'), { parse_mode: 'MarkdownV2' });
+        return res.status(200).end();
+    }
+
+    // Handle existing /link OTP flow
     const linkMatch = text.match(/^\/link\s+([A-Z0-9]+)$/i);
     if (linkMatch) {
         await handleTelegramLink(chatId, from, linkMatch[1].toUpperCase());
@@ -43,7 +59,7 @@ export default async function handler(req, res) {
 
     // Default reply for unknown commands
     if (text.startsWith('/')) {
-        await sendTelegramMessage(chatId, 'Unknown command. Use the link from HelloQueue to connect.');
+        await sendTelegramMessage(chatId, 'Unknown command\\. Use /help to see available commands\\.', { parse_mode: 'MarkdownV2' });
     }
 
     return res.status(200).end();
