@@ -46,7 +46,7 @@ export default async function handler(req, res) {
         });
     }
 
-    const password_hash = await bcrypt.hash(password, 12);
+    const password_hash = await bcrypt.hash(password, 10);
 
     const {
         data: user,

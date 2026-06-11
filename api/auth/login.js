@@ -54,6 +54,16 @@ export default async function handler(req, res) {
         });
     }
 
+    // Upgrade hash cost if stored at a higher round than current target
+    const currentRounds = bcrypt.getRounds(user.password_hash);
+    if (currentRounds > 10) {
+        const newHash = await bcrypt.hash(password, 10);
+        await supabase
+            .from('gftvhello_users')
+            .update({ password_hash: newHash })
+            .eq('id', user.id);
+    }
+
     // If TOTP is enabled, issue a totp_challenge instead of a full session
     if (user.totp_secret) {
         const challengeToken = uuidv4();
