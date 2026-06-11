@@ -1,4 +1,4 @@
-const CACHE = "helloqueue-v8";
+const CACHE = "helloqueue-v9";
 
 const ASSETS = [
   "/",
@@ -10,7 +10,7 @@ const ASSETS = [
   "/display.html",
   "/style.css",
   "/script.js",
-  "/templateicon1.png",
+  "/GHQ-main.png",
   "/favicon.ico",
   "/manifest.json"
 ];
