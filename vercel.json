@@ -1,7 +1,6 @@
 {
     "$schema": "https://openapi.vercel.sh/vercel.json",
     "version": 2,
-    "outputDirectory": ".",
     "cleanUrls": true,
     "regions": ["sin1"],
     "rewrites": [{
@@ -30,31 +29,31 @@
         },
         {
             "source": "/dashboard",
-            "destination": "/pages/dashboard.html"
+            "destination": "/dashboard.html"
         },
         {
             "source": "/dashboard/:path*",
-            "destination": "/pages/dashboard.html"
+            "destination": "/dashboard.html"
         },
         {
             "source": "/login",
-            "destination": "/pages/login.html"
+            "destination": "/login.html"
         },
         {
             "source": "/register",
-            "destination": "/pages/register.html"
+            "destination": "/register.html"
         },
         {
             "source": "/queue/:eventCode/:queueCode",
-            "destination": "/pages/attendee.html"
+            "destination": "/attendee.html"
         },
         {
             "source": "/display/:eventCode/:queueCode",
-            "destination": "/pages/display.html"
+            "destination": "/display.html"
         },
         {
             "source": "/",
-            "destination": "/pages/index.html"
+            "destination": "/index.html"
         }
     ],
     "headers": [{

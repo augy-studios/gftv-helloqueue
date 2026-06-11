@@ -1,8 +1,13 @@
-const CACHE = "helloqueue-offline-v1";
+const CACHE = "helloqueue-offline-v2";
 
 const ASSETS = [
   "/",
   "/index.html",
+  "/login.html",
+  "/register.html",
+  "/dashboard.html",
+  "/attendee.html",
+  "/display.html",
   "/style.css",
   "/script.js",
   "/templateicon1.png",
