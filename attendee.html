@@ -97,36 +97,9 @@
         return;
       }
  
-      if (!getToken()) {
-        renderNotLoggedIn(queueInfo);
-        return;
-      }
- 
       await renderAttendee(eventCode, queueCode, queueInfo);
     }
- 
-    function renderNotLoggedIn(queueInfo) {
-      document.getElementById('attendee-content').innerHTML = `
-        <div class="attendee-header">
-          <h1>${queueInfo.event?.name || 'Event'}</h1>
-          <p>${queueInfo.queue?.name || 'Queue'}</p>
-        </div>
-        <div class="glass queue-card" style="text-align:center;padding:32px;">
-          <div style="font-size:2.5rem;">🎟️</div>
-          <div style="margin:12px 0;">Log in to join this queue and receive notifications.</div>
-          <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:14px;">
-            <a href="/login?redirect=${encodeURIComponent(window.location.href)}" class="btn btn-primary">Log in</a>
-            <a href="/register" class="btn btn-ghost">Register</a>
-          </div>
-        </div>
-        <div class="glass queue-card" style="margin-top:12px;">
-          <div class="info-row"><span class="info-row-label">Waiting</span><span class="info-row-value highlight">${queueInfo.total_in_queue || 0} people</span></div>
-          <div class="info-row"><span class="info-row-label">Estimated wait</span><span class="info-row-value">${queueInfo.est_wait_minutes || 0} min</span></div>
-          <div class="info-row"><span class="info-row-label">Queue status</span><span class="info-row-value">${queueInfo.queue?.status || 'unknown'}</span></div>
-        </div>
-      `;
-    }
- 
+
     async function renderAttendee(eventCode, queueCode, queueInfo) {
       // Resolve queue ID from display data (we need to get queueId for authenticated calls)
       // We'll call status first; if no entry, show join UI
@@ -159,12 +132,16 @@
       if (!content) return;
  
       try {
+        // Guest path: no token, just show public display data
+        if (!getToken()) {
+          const displayRes = await fetch(`/api/display/${eventCode}/${queueCode}`);
+          const display = displayRes.ok ? await displayRes.json() : queueInfo;
+          renderGuestUI(display);
+          return;
+        }
+
         // We need queueId — fetch it if not cached
         if (!window._resolvedQueueId) {
-          // Use admin/display endpoint to resolve
-          const displayRes = await fetch(`/api/display/${eventCode}/${queueCode}`);
-          if (!displayRes.ok) throw new Error('Queue not found');
-          // queueId not in display response; use events API to resolve
           const { events } = await api('/events').catch(() => ({ events: [] }));
           for (const ev of events) {
             const { queues } = await api(`/queues?event_id=${ev.id}`).catch(() => ({ queues: [] }));
@@ -172,10 +149,8 @@
             if (match) { window._resolvedQueueId = match.id; break; }
           }
         }
- 
+
         if (!window._resolvedQueueId) {
-          // Attendee isn't an editor; try the attendee status route with a lightweight display fetch
-          // Show join UI with queue info only
           renderJoinUI(queueInfo, null);
           return;
         }
@@ -361,6 +336,29 @@
       }
     }
  
+    function renderGuestUI(display) {
+      document.getElementById('attendee-content').innerHTML = `
+        <div class="attendee-header">
+          <div style="font-size:1.4rem;">${display.event?.name || 'Event'}</div>
+          <div class="text-muted" style="font-size:0.9rem;">${display.queue?.name || 'Queue'}</div>
+        </div>
+        <div class="glass queue-card">
+          <div class="info-row"><span class="info-row-label">Status</span><span class="info-row-value">${display.queue?.status || 'unknown'}</span></div>
+          <div class="info-row"><span class="info-row-label">Now serving</span><span class="info-row-value highlight">${display.now_serving ?? '—'}</span></div>
+          <div class="info-row"><span class="info-row-label">Waiting</span><span class="info-row-value">${display.total_in_queue || 0} people</span></div>
+          <div class="info-row"><span class="info-row-label">Est. wait</span><span class="info-row-value">~${display.est_wait_minutes || 0} min</span></div>
+        </div>
+        <div class="glass queue-card" style="margin-top:12px;text-align:center;padding:24px;">
+          <div style="font-size:2rem;margin-bottom:10px;">🎟️</div>
+          <div style="margin-bottom:14px;">Log in to join this queue and get Telegram notifications.</div>
+          <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+            <a href="/login?redirect=${encodeURIComponent(window.location.href)}" class="btn btn-primary">Log in</a>
+            <a href="/register" class="btn btn-ghost">Register</a>
+          </div>
+        </div>
+      `;
+    }
+
     function renderJoinUI(queueInfo) {
       document.getElementById('attendee-content').innerHTML = `
         <div class="attendee-header">
