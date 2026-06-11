@@ -542,55 +542,28 @@ textarea:focus {
 /* ── QR animated border ──────────────────────────────────────────────────────── */
 .qr-wrapper {
   position: relative;
-  width: 220px;
-  height: 220px;
+  width: 208px;
+  height: 208px;
+  padding: 4px;
+  box-sizing: border-box;
+  border-radius: 14px;
   margin: 0 auto;
+  background: conic-gradient(from 0deg, var(--brand), var(--status-serving), var(--brand));
+  animation: spin-ring 2s linear infinite;
 }
 
 .qr-wrapper canvas,
 .qr-wrapper img {
   display: block;
-  width: 200px;
-  height: 200px;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  border-radius: 6px;
-  z-index: 1;
-}
-
-.qr-border-ring {
-  position: absolute;
-  inset: 0;
-  border-radius: var(--radius);
-  background: conic-gradient(var(--brand) 0deg,
-      transparent 60deg,
-      var(--status-serving) 120deg,
-      transparent 180deg,
-      var(--brand) 240deg,
-      transparent 300deg,
-      var(--status-serving) 360deg);
-  animation: spin-ring 1.8s linear infinite;
-  z-index: 0;
-}
-
-.qr-border-inner {
-  position: absolute;
-  inset: 5px;
-  border-radius: calc(var(--radius) - 4px);
-  background: var(--bg);
-  z-index: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 10px;
+  object-fit: contain;
 }
 
 @keyframes spin-ring {
-  from {
-    transform: rotate(0deg);
-  }
-
-  to {
-    transform: rotate(360deg);
-  }
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 
 /* ── Modal ───────────────────────────────────────────────────────────────────── */
