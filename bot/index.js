@@ -1,5 +1,6 @@
 // Run on Debian VPS: node index.js
 // Required env vars: TELEGRAM_BOT_TOKEN, SUPABASE_URL, SUPABASE_SERVICE_KEY, WEBAPP_URL
+import 'dotenv/config';
 import TelegramBot from 'node-telegram-bot-api';
 import {
     createClient
