@@ -248,7 +248,7 @@ function attachOperatorEvents(container, user, navigate, queueId, eventId, queue
             clearInterval(pollTimer);
             pollTimer = null;
         }
-        import('/js/views/events.js').then(m => m.renderEventsView(container, {
+        import('/views/events.js').then(m => m.renderEventsView(container, {
             user,
             navigate
         }));

@@ -270,7 +270,7 @@ async function openEventDetail(eventId, container, user, navigate) {
 
         container.querySelectorAll('.operate-queue-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                import('/js/views/queue-operator.js').then(m => {
+                import('/views/queue-operator.js').then(m => {
                     m.renderQueueOperatorView(container, {
                         user,
                         navigate,

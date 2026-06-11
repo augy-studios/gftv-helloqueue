@@ -107,7 +107,7 @@ async function loadMyQueues(container, user, navigate) {
         // Attach operate buttons
         listEl.querySelectorAll('.operate-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                import('/js/views/queue-operator.js').then(m => {
+                import('/views/queue-operator.js').then(m => {
                     m.renderQueueOperatorView(container, {
                         user,
                         navigate,
