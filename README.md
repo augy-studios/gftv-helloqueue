@@ -73,29 +73,15 @@ helloqueue/
 │   ├── index.js                        # Full bot: /start /link /unlink /joinqueue /status /leavequeue /notify
 │   └── package.json
 │
-├── pages/                              # HTML pages (served via Vercel rewrites)
-│   ├── index.html                      # Landing page
-│   ├── login.html                      # Login (username + password)
-│   ├── register.html                   # Register (pending approval flow)
-│   ├── dashboard.html                  # Operator dashboard (SPA with sidebar nav)
-│   ├── attendee.html                   # Attendee queue page — join, status, animated QR
-│   └── display.html                    # TV display screen — polls every 5s, no auth
-│
-└── public/                             # Static assets
-    ├── manifest.json                   # PWA manifest
-    ├── assets/
-    │   ├── icon-192.png                # PWA icon (add manually)
-    │   └── icon-512.png                # PWA icon (add manually)
-    ├── css/
-    │   └── main.css                    # Full stylesheet — Light + HelloTheme, glassmorphism
-    └── js/
-        ├── app.js                      # Shared: Icons SVG, theme, toast, auth, api(), topbar
-        └── views/                      # Dashboard view modules (lazy-imported)
-            ├── events.js               # Events list + event detail + queue creation
-            ├── queues.js               # My Queues — operator's assigned queues
-            ├── queue-operator.js       # Queue operator UI — 4-col live board, scanner
-            ├── profile.js              # Profile — Telegram link/unlink, OTP flow
-            └── admin-users.js          # Admin — approve/reject users, manage roles
+├── index.html                          # Landing page
+├── login.html                          # Login (username + password)
+├── register.html                       # Register (pending approval flow)
+├── dashboard.html                      # Operator dashboard (SPA with sidebar nav)
+├── attendee.html                       # Attendee queue page — join, status, animated QR
+├── display.html                        # TV display screen — polls every 5s, no auth
+├── manifest.json                       # PWA manifest
+├── style.css                           # Full stylesheet — Light + HelloTheme, glassmorphism
+└── script.js                           # Shared: Icons SVG, theme, toast, auth, api(), topbar
 ```
 
 ---
@@ -201,7 +187,7 @@ node index.js
 ```
 
 ### 4. PWA Icons
-Add `public/assets/icon-192.png` and `public/assets/icon-512.png` (any square images — 192×192 and 512×512 px).
+Add `icon-192.png` and `icon-512.png` to the root directory (any square images — 192×192 and 512×512 px).
 
 ---
 
