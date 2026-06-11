@@ -30,31 +30,31 @@
         },
         {
             "source": "/dashboard",
-            "destination": "/dashboard.html"
+            "destination": "/dashboard"
         },
         {
             "source": "/dashboard/:path*",
-            "destination": "/dashboard.html"
+            "destination": "/dashboard"
         },
         {
             "source": "/login",
-            "destination": "/login.html"
+            "destination": "/login"
         },
         {
             "source": "/register",
-            "destination": "/register.html"
+            "destination": "/register"
         },
         {
             "source": "/queue/:eventCode/:queueCode",
-            "destination": "/attendee.html"
+            "destination": "/attendee"
         },
         {
             "source": "/display/:eventCode/:queueCode",
-            "destination": "/display.html"
+            "destination": "/display"
         },
         {
             "source": "/",
-            "destination": "/index.html"
+            "destination": "/index"
         }
     ],
     "headers": [{
