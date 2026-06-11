@@ -2,7 +2,7 @@ import {
     api,
     toast,
     Icons
-} from '/js/app.js';
+} from '/script.js';
 
 export async function renderProfileView(container, {
     user
