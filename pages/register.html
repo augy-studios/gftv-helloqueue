@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FMCYFTFPEL"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+
+        function gtag() {
+            dataLayer.push(arguments);
+        }
+        gtag('js', new Date());
+
+        gtag('config', 'G-FMCYFTFPEL');
+    </script>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9715826188316382"
+        crossorigin="anonymous"></script>
+
+    <link rel="manifest" href="/manifest.json" />
+
+    <meta charset="utf-8">
+    <title>Register | GFTV HelloQueue</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="GFTV Virtual Queue Management System">
+
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Register | GFTV HelloQueue" />
+    <meta property="og:site_name" content="UwU Apps" />
+    <meta property="og:description" content="GFTV Virtual Queue Management System" />
+
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Jua">
+    <link rel="stylesheet" href="/style.css">
+    <meta name="theme-color" content="#ccffcc" />
+
+    <!-- Embed Image -->
+    <link rel="apple-touch-icon" href="/templateicon1.png">
+    <link rel="icon" href="/favicon.ico">
+    <link rel="shortcut icon" href="/favicon.ico">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:image:src" content="/templateicon1.png">
+    <meta property="og:image" content="/templateicon1.png" />
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script defer="" src="https://use.fontawesome.com/releases/v6.5.2/js/all.js"></script>
+</head>
+
+<body>
+
+    <div id="topbar-root"></div>
+
+    <div class="auth-page">
+        <div class="glass auth-card">
+            <div class="auth-title">Create account</div>
+            <div class="auth-sub">Join HelloQueue – your account will be reviewed before activation</div>
+
+            <form id="register-form">
+                <div class="form-group">
+                    <label for="display_name">Display Name</label>
+                    <input type="text" id="display_name" placeholder="Augy the Fox" required />
+                </div>
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" placeholder="augyfox" required autocomplete="username" />
+                </div>
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" placeholder="you@example.com" required autocomplete="email" />
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" placeholder="Min. 8 characters" required
+                        autocomplete="new-password" />
+                </div>
+                <div id="reg-error"
+                    style="color:var(--status-error);font-size:0.85rem;margin-bottom:12px;display:none;"></div>
+                <div id="reg-success"
+                    style="color:var(--status-serving);font-size:0.85rem;margin-bottom:12px;display:none;"></div>
+                <button type="submit" class="btn btn-primary w-full" id="reg-btn">Create account</button>
+            </form>
+
+            <hr class="divider" />
+            <div class="text-sm text-muted" style="text-align:center;">
+                Already have an account? <a href="/login" class="auth-link">Sign in</a>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container" class="toast-container"></div>
+
+    <script type="module">
+        import { initTheme, buildTopbar, api } from '/script.js';
+    initTheme();
+    buildTopbar(document.getElementById('topbar-root'));
+ 
+    const form = document.getElementById('register-form');
+    const errEl = document.getElementById('reg-error');
+    const sucEl = document.getElementById('reg-success');
+    const btn = document.getElementById('reg-btn');
+ 
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errEl.style.display = 'none';
+      sucEl.style.display = 'none';
+      btn.disabled = true;
+      btn.textContent = 'Creating account…';
+ 
+      try {
+        await api('/auth/register', {
+          method: 'POST',
+          body: {
+            display_name: document.getElementById('display_name').value.trim(),
+            username: document.getElementById('username').value.trim(),
+            email: document.getElementById('email').value.trim(),
+            password: document.getElementById('password').value,
+          },
+        });
+        sucEl.textContent = 'Account created! Please wait for an admin to approve your account.';
+        sucEl.style.display = 'block';
+        form.reset();
+        btn.textContent = 'Done';
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Create account';
+      }
+    });
+  </script>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js');
+        }
+    </script>
+
+</body>
+
+</html>

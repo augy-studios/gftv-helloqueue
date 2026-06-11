@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FMCYFTFPEL"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+
+        function gtag() {
+            dataLayer.push(arguments);
+        }
+        gtag('js', new Date());
+
+        gtag('config', 'G-FMCYFTFPEL');
+    </script>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9715826188316382"
+        crossorigin="anonymous"></script>
+
+    <link rel="manifest" href="/manifest.json" />
+
+    <meta charset="utf-8">
+    <title>Display | GFTV HelloQueue</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="GFTV Virtual Queue Management System">
+
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Display | GFTV HelloQueue" />
+    <meta property="og:site_name" content="UwU Apps" />
+    <meta property="og:description" content="GFTV Virtual Queue Management System" />
+
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Jua">
+    <link rel="stylesheet" href="/style.css">
+    <meta name="theme-color" content="#ccffcc" />
+
+    <!-- Embed Image -->
+    <link rel="apple-touch-icon" href="/templateicon1.png">
+    <link rel="icon" href="/favicon.ico">
+    <link rel="shortcut icon" href="/favicon.ico">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:image:src" content="/templateicon1.png">
+    <meta property="og:image" content="/templateicon1.png" />
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script defer="" src="https://use.fontawesome.com/releases/v6.5.2/js/all.js"></script>
+</head>
+
+<body>
+
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Queue Display – HelloQueue</title>
+    <link rel="stylesheet" href="/css/main.css" />
+    <link rel="manifest" href="/manifest.json" />
+    <style>
+        body {
+            overflow: hidden;
+        }
+
+        .display-header h1 {
+            font-size: 1.8rem;
+        }
+
+        .now-serving-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+
+        .serving-number-big {
+            width: 100px;
+            height: 100px;
+            font-size: 3rem;
+            border-radius: var(--radius);
+            background: #e41f1f;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: pop-in 0.25s ease;
+        }
+
+        @keyframes pop-in {
+            from {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .display-section-title {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+        }
+
+        .pulse {
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.6;
+            }
+        }
+    </style>
+    </head>
+
+    <body>
+        <div class="display-page" id="display-root">
+            <div style="display:flex;align-items:center;justify-content:center;height:100vh;width:100vw;">
+                <div class="loader"></div>
+            </div>
+        </div>
+
+        <script type="module">
+            import { initTheme, Icons } from '/js/app.js';
+    initTheme();
+ 
+    const parts = window.location.pathname.split('/').filter(Boolean);
+    const eventCode = parts[1];
+    const queueCode = parts[2];
+ 
+    if (!eventCode || !queueCode) {
+      document.getElementById('display-root').innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:center;height:100vh;font-size:1.2rem;color:var(--text-muted);">
+          Invalid display URL.
+        </div>`;
+    } else {
+      let prevServing = [];
+      let joinQR = null;
+ 
+      // Generate join QR once
+      generateJoinQR(`https://queue.gftv.asia/queue/${eventCode}/${queueCode}`).then(url => {
+        joinQR = url;
+      });
+ 
+      async function generateJoinQR(url) {
+        // Use QRServer API (no JS lib needed on display page)
+        return `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(url)}`;
+      }
+ 
+      async function refresh() {
+        try {
+          const res = await fetch(`/api/display/${eventCode}/${queueCode}`);
+          if (!res.ok) throw new Error('Queue not found');
+          const data = await res.json();
+          render(data);
+        } catch (err) {
+          document.getElementById('display-root').innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:center;height:100vh;">
+              <div class="text-muted" style="text-align:center;">
+                <div style="font-size:2rem;">📺</div>
+                <div style="margin-top:10px;">${err.message}</div>
+                <div class="text-sm" style="margin-top:6px;">Retrying…</div>
+              </div>
+            </div>`;
+        }
+      }
+ 
+      function render(data) {
+        const serving = data.serving || [];
+        const waiting = data.waiting || [];
+        const missed  = data.missed  || [];
+        const newlyServed = serving.filter(n => !prevServing.includes(n));
+        prevServing = [...serving];
+ 
+        const root = document.getElementById('display-root');
+ 
+        // Check if structure already built; if so just update content
+        const existingMain = document.getElementById('display-main');
+        if (existingMain) {
+          updateDisplay(data, serving, waiting, missed, newlyServed);
+          return;
+        }
+ 
+        root.innerHTML = `
+          <div class="display-main" id="display-main">
+            <div class="display-header">
+              <h1>${data.event?.name || 'Event'}</h1>
+              <p>${data.queue?.name || 'Queue'} &nbsp;·&nbsp;
+                <span class="status-pill ${data.queue?.status}">${data.queue?.status}</span>
+              </p>
+            </div>
+ 
+            <!-- NOW SERVING -->
+            <div class="serving-block">
+              <div class="now-serving-label">🎤 Now Serving</div>
+              <div id="serving-numbers" class="serving-numbers">
+                ${renderServingNumbers(serving)}
+              </div>
+              ${serving.length === 0 ? '<div class="text-muted" style="font-size:0.88rem;margin-top:4px;">No one being served yet</div>' : ''}
+            </div>
+ 
+            <!-- IN QUEUE -->
+            <div>
+              <div class="display-section-title">⏳ In Queue (${waiting.length})</div>
+              <div id="waiting-numbers" class="waiting-row">
+                ${waiting.map(n => `<div class="waiting-badge">${n}</div>`).join('') || '<span class="text-muted text-sm">Queue is empty</span>'}
+              </div>
+            </div>
+ 
+            <!-- MISSED -->
+            ${missed.length ? `
+            <div>
+              <div class="display-section-title">⚠️ Missed (${missed.length})</div>
+              <div id="missed-numbers" class="missed-row">
+                ${missed.map(n => `<div class="missed-badge">${n}</div>`).join('')}
+              </div>
+            </div>` : '<div id="missed-numbers"></div>'}
+          </div>
+ 
+          <!-- SIDEBAR -->
+          <div class="display-sidebar">
+            <div style="text-align:center;">
+              <div style="font-size:1.5rem;">${data.event?.name || ''}</div>
+              <div class="text-sm text-muted">${data.queue?.name || ''}</div>
+            </div>
+ 
+            <div class="display-stats">
+              <div class="display-stat">
+                <div class="display-stat-num" style="color:var(--status-serving);">${serving.length}</div>
+                <div class="display-stat-label">Serving</div>
+              </div>
+              <div class="display-stat">
+                <div class="display-stat-num" style="color:var(--status-waiting);">${waiting.length}</div>
+                <div class="display-stat-label">Waiting</div>
+              </div>
+              <div class="display-stat">
+                <div class="display-stat-num">${data.total_served || 0}</div>
+                <div class="display-stat-label">Served</div>
+              </div>
+              <div class="display-stat">
+                <div class="display-stat-num" style="color:var(--status-missed);">${missed.length}</div>
+                <div class="display-stat-label">Missed</div>
+              </div>
+            </div>
+ 
+            <div style="text-align:center;">
+              <div class="display-section-title">Est. Wait Time</div>
+              <div class="display-wait-time pulse">${data.est_wait_minutes || 0} min</div>
+            </div>
+ 
+            <div>
+              <div class="display-section-title">Join Queue</div>
+              <div class="display-qr-wrap">
+                <img id="join-qr" src="${joinQR || `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(data.join_url)}`}" alt="Join QR" />
+              </div>
+              <div class="text-sm text-muted" style="margin-top:8px;">Scan to join</div>
+            </div>
+ 
+            <div class="text-sm text-muted" id="last-updated" style="font-size:0.72rem;">
+              Updated ${new Date().toLocaleTimeString()}
+            </div>
+          </div>
+        `;
+      }
+ 
+      function renderServingNumbers(serving) {
+        if (!serving.length) return '';
+        return serving.map(n => `<div class="serving-number-big">${n}</div>`).join('');
+      }
+ 
+      function updateDisplay(data, serving, waiting, missed, newlyServed) {
+        const servingEl = document.getElementById('serving-numbers');
+        const waitingEl = document.getElementById('waiting-numbers');
+        const missedEl  = document.getElementById('missed-numbers');
+ 
+        if (servingEl) {
+          servingEl.innerHTML = serving.length
+            ? serving.map(n => `<div class="serving-number-big ${newlyServed.includes(n) ? 'pop-in' : ''}">${n}</div>`).join('')
+            : '<div class="text-muted text-sm">No one being served yet</div>';
+        }
+ 
+        if (waitingEl) {
+          waitingEl.innerHTML = waiting.length
+            ? waiting.map(n => `<div class="waiting-badge">${n}</div>`).join('')
+            : '<span class="text-muted text-sm">Queue is empty</span>';
+        }
+ 
+        if (missedEl) {
+          missedEl.innerHTML = missed.length
+            ? `<div class="display-section-title" style="margin-top:16px;">⚠️ Missed (${missed.length})</div><div class="missed-row">${missed.map(n => `<div class="missed-badge">${n}</div>`).join('')}</div>`
+            : '';
+        }
+ 
+        // Update stats
+        const stats = document.querySelectorAll('.display-stat-num');
+        if (stats[0]) stats[0].textContent = serving.length;
+        if (stats[1]) stats[1].textContent = waiting.length;
+        if (stats[2]) stats[2].textContent = data.total_served || 0;
+        if (stats[3]) stats[3].textContent = missed.length;
+ 
+        const waitEl = document.querySelector('.display-wait-time');
+        if (waitEl) waitEl.textContent = `${data.est_wait_minutes || 0} min`;
+ 
+        const tsEl = document.getElementById('last-updated');
+        if (tsEl) tsEl.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+      }
+ 
+      refresh();
+      setInterval(refresh, 5000);
+    }
+  </script>
+
+
+        <script>
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('/sw.js');
+            }
+        </script>
+
+    </body>
+
+</html>

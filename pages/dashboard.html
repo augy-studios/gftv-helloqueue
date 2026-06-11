@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FMCYFTFPEL"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+
+        function gtag() {
+            dataLayer.push(arguments);
+        }
+        gtag('js', new Date());
+
+        gtag('config', 'G-FMCYFTFPEL');
+    </script>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9715826188316382"
+        crossorigin="anonymous"></script>
+
+    <link rel="manifest" href="/manifest.json" />
+
+    <meta charset="utf-8">
+    <title>Dashboard | GFTV HelloQueue</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="GFTV Virtual Queue Management System">
+
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Dashboard | GFTV HelloQueue" />
+    <meta property="og:site_name" content="UwU Apps" />
+    <meta property="og:description" content="GFTV Virtual Queue Management System" />
+
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Jua">
+    <link rel="stylesheet" href="/style.css">
+    <meta name="theme-color" content="#ccffcc" />
+
+    <!-- Embed Image -->
+    <link rel="apple-touch-icon" href="/templateicon1.png">
+    <link rel="icon" href="/favicon.ico">
+    <link rel="shortcut icon" href="/favicon.ico">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:image:src" content="/templateicon1.png">
+    <meta property="og:image" content="/templateicon1.png" />
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script defer="" src="https://use.fontawesome.com/releases/v6.5.2/js/all.js"></script>
+</head>
+
+<body>
+
+    <div id="topbar-root"></div>
+
+    <div class="dashboard-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <button class="sidebar-item active" id="nav-events" data-view="events">
+                <span id="nav-events-icon"></span> Events
+            </button>
+            <button class="sidebar-item" id="nav-queues" data-view="queues">
+                <span id="nav-queues-icon"></span> My Queues
+            </button>
+            <button class="sidebar-item" id="nav-profile" data-view="profile">
+                <span id="nav-profile-icon"></span> Profile
+            </button>
+            <div id="nav-admin-section" style="display:none;">
+                <hr class="divider" />
+                <div class="section-label" style="padding:0 14px;">Admin</div>
+                <button class="sidebar-item" data-view="admin-users">
+                    <span id="nav-users-icon"></span> Users
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main -->
+        <main class="main-content" id="main-content">
+            <div style="display:flex;align-items:center;justify-content:center;height:200px;">
+                <div class="loader"></div>
+            </div>
+        </main>
+    </div>
+
+    <div id="toast-container" class="toast-container"></div>
+
+    <script type="module">
+        import { initTheme, buildTopbar, requireLogin, getUser, api, toast, Icons, openThemeModal } from '/script.js';
+    import { renderEventsView } from '/views/events.js';
+    import { renderQueuesView } from '/views/queues.js';
+    import { renderProfileView } from '/views/profile.js';
+    import { renderAdminUsersView } from '/views/admin-users.js';
+    import { renderQueueOperatorView } from '/views/queue-operator.js';
+ 
+    initTheme();
+    if (!requireLogin()) throw new Error('not logged in');
+    buildTopbar(document.getElementById('topbar-root'));
+ 
+    const user = getUser();
+    const mainContent = document.getElementById('main-content');
+ 
+    // Inject icons
+    document.getElementById('nav-events-icon').innerHTML = Icons.calendar;
+    document.getElementById('nav-queues-icon').innerHTML = Icons.list;
+    document.getElementById('nav-profile-icon').innerHTML = Icons.user;
+    if (user?.is_admin) {
+      document.getElementById('nav-admin-section').style.display = 'block';
+      document.getElementById('nav-users-icon').innerHTML = Icons.users;
+    }
+ 
+    // Router
+    const views = {
+      'events': renderEventsView,
+      'queues': renderQueuesView,
+      'profile': renderProfileView,
+      'admin-users': renderAdminUsersView,
+    };
+ 
+    let currentView = 'events';
+ 
+    function navigate(view, params = {}) {
+      currentView = view;
+      document.querySelectorAll('.sidebar-item').forEach(b => {
+        b.classList.toggle('active', b.dataset.view === view);
+      });
+ 
+      const renderer = views[view];
+      if (renderer) {
+        renderer(mainContent, { user, navigate, ...params });
+      }
+    }
+ 
+    // Listen for queue operator deep link
+    window.addEventListener('hq:openqueue', (e) => {
+      renderQueueOperatorView(mainContent, { user, navigate, queueId: e.detail.queueId, eventId: e.detail.eventId });
+    });
+ 
+    document.querySelectorAll('.sidebar-item').forEach(btn => {
+      btn.addEventListener('click', () => navigate(btn.dataset.view));
+    });
+ 
+    // Check URL for deep link
+    const path = window.location.pathname;
+    const queueMatch = path.match(/\/dashboard\/events\/([^/]+)\/queues\/([^/]+)/);
+    if (queueMatch) {
+      renderQueueOperatorView(mainContent, { user, navigate, eventId: queueMatch[1], queueId: queueMatch[2] });
+    } else {
+      navigate('events');
+    }
+  </script>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js');
+        }
+    </script>
+
+</body>
+
+</html>

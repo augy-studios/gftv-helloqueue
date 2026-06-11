@@ -4,7 +4,73 @@
     "cleanUrls": true,
     "regions": ["sin1"],
     "rewrites": [{
-        "source": "/",
-        "destination": "/"
+            "source": "/api/auth/:path*",
+            "destination": "/api/auth/:path*"
+        },
+        {
+            "source": "/api/events/:path*",
+            "destination": "/api/events/:path*"
+        },
+        {
+            "source": "/api/queues/:path*",
+            "destination": "/api/queues/:path*"
+        },
+        {
+            "source": "/api/display/:path*",
+            "destination": "/api/display/:path*"
+        },
+        {
+            "source": "/api/telegram/:path*",
+            "destination": "/api/telegram/:path*"
+        },
+        {
+            "source": "/api/user/:path*",
+            "destination": "/api/user/:path*"
+        },
+        {
+            "source": "/dashboard",
+            "destination": "/pages/dashboard.html"
+        },
+        {
+            "source": "/dashboard/:path*",
+            "destination": "/pages/dashboard.html"
+        },
+        {
+            "source": "/login",
+            "destination": "/pages/login.html"
+        },
+        {
+            "source": "/register",
+            "destination": "/pages/register.html"
+        },
+        {
+            "source": "/queue/:eventCode/:queueCode",
+            "destination": "/pages/attendee.html"
+        },
+        {
+            "source": "/display/:eventCode/:queueCode",
+            "destination": "/pages/display.html"
+        },
+        {
+            "source": "/",
+            "destination": "/pages/index.html"
+        }
+    ],
+    "headers": [{
+        "source": "/api/(.*)",
+        "headers": [{
+                "key": "Access-Control-Allow-Origin",
+                "value": "*"
+            },
+            {
+                "key": "Access-Control-Allow-Methods",
+                "value": "GET,POST,PUT,DELETE,OPTIONS"
+            },
+            {
+                "key": "Access-Control-Allow-Headers",
+                "value": "Content-Type, Authorization"
+            }
+        ]
     }]
+
 }

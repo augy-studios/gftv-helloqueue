@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FMCYFTFPEL"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+
+        function gtag() {
+            dataLayer.push(arguments);
+        }
+        gtag('js', new Date());
+
+        gtag('config', 'G-FMCYFTFPEL');
+    </script>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9715826188316382"
+        crossorigin="anonymous"></script>
+
+    <link rel="manifest" href="/manifest.json" />
+
+    <meta charset="utf-8">
+    <title>Login | GFTV HelloQueue</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="GFTV Virtual Queue Management System">
+
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Login | GFTV HelloQueue" />
+    <meta property="og:site_name" content="UwU Apps" />
+    <meta property="og:description" content="GFTV Virtual Queue Management System" />
+
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Jua">
+    <link rel="stylesheet" href="/style.css">
+    <meta name="theme-color" content="#ccffcc" />
+
+    <!-- Embed Image -->
+    <link rel="apple-touch-icon" href="/templateicon1.png">
+    <link rel="icon" href="/favicon.ico">
+    <link rel="shortcut icon" href="/favicon.ico">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:image:src" content="/templateicon1.png">
+    <meta property="og:image" content="/templateicon1.png" />
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script defer="" src="https://use.fontawesome.com/releases/v6.5.2/js/all.js"></script>
+</head>
+
+<body>
+
+    <div id="topbar-root"></div>
+
+    <div class="auth-page">
+        <div class="glass auth-card">
+            <div class="auth-title">Welcome back</div>
+            <div class="auth-sub">Sign in to HelloQueue</div>
+
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" placeholder="your_username" autocomplete="username"
+                        required />
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" placeholder="••••••••"
+                        autocomplete="current-password" required />
+                </div>
+                <div id="login-error"
+                    style="color:var(--status-error);font-size:0.85rem;margin-bottom:12px;display:none;"></div>
+                <button type="submit" class="btn btn-primary w-full" id="login-btn">Sign in</button>
+            </form>
+
+            <hr class="divider" />
+            <div class="text-sm text-muted" style="text-align:center;">
+                Don't have an account? <a href="/register" class="auth-link">Register</a>
+            </div>
+        </div>
+    </div>
+
+    <div id="theme-modal-root"></div>
+    <div id="toast-container" class="toast-container"></div>
+
+    <script type="module">
+        import { initTheme, buildTopbar, saveAuth, getToken, api, toast } from '/script.js';
+ 
+    initTheme();
+    buildTopbar(document.getElementById('topbar-root'));
+ 
+    // Already logged in?
+    if (getToken()) window.location.href = '/dashboard';
+ 
+    const form = document.getElementById('login-form');
+    const errEl = document.getElementById('login-error');
+    const btn = document.getElementById('login-btn');
+ 
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errEl.style.display = 'none';
+      btn.disabled = true;
+      btn.textContent = 'Signing in…';
+ 
+      try {
+        const data = await api('/auth/login', {
+          method: 'POST',
+          body: {
+            username: document.getElementById('username').value.trim(),
+            password: document.getElementById('password').value,
+          },
+        });
+ 
+        if (data.requires_totp) {
+          // Store totp token, redirect to TOTP page
+          sessionStorage.setItem('totp_token', data.totp_token);
+          window.location.href = '/login/totp';
+          return;
+        }
+ 
+        saveAuth(data.token, data.user);
+        window.location.href = '/dashboard';
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Sign in';
+      }
+    });
+  </script>
+
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js');
+        }
+    </script>
+
+</body>
+
+</html>

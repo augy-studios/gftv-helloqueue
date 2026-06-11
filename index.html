@@ -20,14 +20,14 @@
     <link rel="manifest" href="/manifest.json" />
 
     <meta charset="utf-8">
-    <title>Template | UwU Apps</title>
+    <title>GFTV HelloQueue | UwU Apps</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="A simple template app; view live template at a glance!">
+    <meta name="description" content="GFTV Virtual Queue Management System">
 
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Template | UwU Apps" />
+    <meta property="og:title" content="GFTV HelloQueue | UwU Apps" />
     <meta property="og:site_name" content="UwU Apps" />
-    <meta property="og:description" content="A simple template app; view live template at a glance!" />
+    <meta property="og:description" content="GFTV Virtual Queue Management System" />
 
     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Jua">
     <link rel="stylesheet" href="/style.css">
@@ -46,16 +46,88 @@
 </head>
 
 <body>
-    Template
+    <div id="topbar-root"></div>
 
-    <script src="/script.js"></script>
+    <div class="hero">
+        <div class="hero-badge">GFTV · HelloQueue</div>
+        <h1>Virtual Queue Management for Furry Events</h1>
+        <p>
+            Skip the physical line. Attendees join via Telegram or web, wander freely,
+            and get notified when it's their turn. Operators manage everything from a
+            single dashboard.
+        </p>
+        <div class="hero-cta">
+            <a href="/login" class="btn btn-primary">Operator Login</a>
+            <a href="https://donate.stripe.com/28o2akeAr3hv0DK6oo" target="_blank" rel="noopener" class="btn btn-ghost">
+                ☕ Buy Augy a Coffee
+            </a>
+        </div>
+    </div>
+
+    <div class="features">
+        <div class="glass feature-card">
+            <div class="feature-icon">🤖</div>
+            <div class="feature-title">Telegram Native</div>
+            <div class="feature-desc">Join queues and receive alerts directly in Telegram via @GFTVHelloQueueBot. No app
+                installation required.</div>
+        </div>
+        <div class="glass feature-card">
+            <div class="feature-icon">📺</div>
+            <div class="feature-title">Live Display Screen</div>
+            <div class="feature-desc">Put a display at the entrance showing numbers being served, waiting counts, and a
+                scannable QR to join.</div>
+        </div>
+        <div class="glass feature-card">
+            <div class="feature-icon">🎟️</div>
+            <div class="feature-title">Animated QR Entry</div>
+            <div class="feature-desc">When called, attendees get a one-time animated QR code on their phone to show at
+                the door — scanned by staff to confirm entry.</div>
+        </div>
+        <div class="glass feature-card">
+            <div class="feature-icon">🔔</div>
+            <div class="feature-title">Smart Notifications</div>
+            <div class="feature-desc">Attendees choose when to be notified — when called, or when they're next in line.
+                Both are on by default.</div>
+        </div>
+        <div class="glass feature-card">
+            <div class="feature-icon">🧑‍💼</div>
+            <div class="feature-title">Role-Based Access</div>
+            <div class="feature-desc">Admins create events and assign editors. Queue creators manage their own queues
+                and operators.</div>
+        </div>
+        <div class="glass feature-card">
+            <div class="feature-icon">⚡</div>
+            <div class="feature-title">Fast & Offline-Ready</div>
+            <div class="feature-desc">A PWA built for convention environments with spotty WiFi. Works great on both
+                phones and tablets.</div>
+        </div>
+    </div>
+
+    <div class="footer">
+        Built by GFTV · Powered by Vercel + Supabase + Telegram
+        <br />
+        <a href="https://gftv.asia" style="color:var(--brand-dark);">gftv.asia</a>
+        &nbsp;·&nbsp;
+        <a href="https://donate.stripe.com/28o2akeAr3hv0DK6oo" target="_blank" style="color:var(--brand-dark);">Support
+            HelloQueue</a>
+    </div>
+
+    <script type="module">
+        import { initTheme, buildTopbar, getToken } from '/script.js';
+    initTheme();
+    buildTopbar(document.getElementById('topbar-root'));
+    if (getToken()) {
+      // Already logged in - redirect to dashboard
+      window.location.href = '/dashboard';
+    }
+    </script>
 
     <script>
         if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.register('/sw.js');
+            navigator.serviceWorker.register('/sw.js');
         }
     </script>
-    
+
 </body>
 
 </html>

@@ -1,0 +1,17 @@
+{
+    "name": "helloqueue-bot",
+    "version": "1.0.0",
+    "description": "GFTVHelloQueueBot - Telegram bot for HelloQueue",
+    "type": "module",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js"
+    },
+    "dependencies": {
+        "@supabase/supabase-js": "^2.39.3",
+        "node-telegram-bot-api": "^0.66.0"
+    },
+    "engines": {
+        "node": ">=18.x"
+    }
+}

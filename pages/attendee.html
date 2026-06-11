@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FMCYFTFPEL"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+
+        function gtag() {
+            dataLayer.push(arguments);
+        }
+        gtag('js', new Date());
+
+        gtag('config', 'G-FMCYFTFPEL');
+    </script>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9715826188316382"
+        crossorigin="anonymous"></script>
+
+    <link rel="manifest" href="/manifest.json" />
+
+    <meta charset="utf-8">
+    <title>Queue | GFTV HelloQueue</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="GFTV Virtual Queue Management System">
+
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Queue | GFTV HelloQueue" />
+    <meta property="og:site_name" content="UwU Apps" />
+    <meta property="og:description" content="GFTV Virtual Queue Management System" />
+
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Jua">
+    <link rel="stylesheet" href="/style.css">
+    <meta name="theme-color" content="#ccffcc" />
+
+    <!-- Embed Image -->
+    <link rel="apple-touch-icon" href="/templateicon1.png">
+    <link rel="icon" href="/favicon.ico">
+    <link rel="shortcut icon" href="/favicon.ico">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:image:src" content="/templateicon1.png">
+    <meta property="og:image" content="/templateicon1.png" />
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script defer="" src="https://use.fontawesome.com/releases/v6.5.2/js/all.js"></script>
+</head>
+
+<body>
+
+    <div id="topbar-root"></div>
+
+    <div class="attendee-container">
+        <div id="attendee-content">
+            <div style="display:flex;justify-content:center;padding:60px 0;">
+                <div class="loader"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container" class="toast-container"></div>
+
+    <script type="module">
+        import { initTheme, buildTopbar, getToken, getUser, api, toast, Icons, clearAuth } from '/js/app.js';
+ 
+    initTheme();
+    buildTopbar(document.getElementById('topbar-root'));
+ 
+    // Parse event/queue codes from URL: /queue/{eventCode}/{queueCode}
+    const parts = window.location.pathname.split('/').filter(Boolean);
+    const eventCode = parts[1];
+    const queueCode = parts[2];
+ 
+    if (!eventCode || !queueCode) {
+      document.getElementById('attendee-content').innerHTML = `
+        <div class="glass queue-card" style="text-align:center;padding:32px;">
+          <div style="font-size:2rem;">😕</div>
+          <div style="margin-top:10px;">Invalid queue link.</div>
+        </div>`;
+    } else {
+      initAttendee(eventCode, queueCode);
+    }
+ 
+    let pollTimer = null;
+ 
+    async function initAttendee(eventCode, queueCode) {
+      // Fetch queue info via display endpoint (no auth needed)
+      let queueInfo = null;
+      try {
+        const res = await fetch(`/api/display/${eventCode}/${queueCode}`);
+        queueInfo = await res.json();
+      } catch {
+        document.getElementById('attendee-content').innerHTML = `
+          <div class="glass queue-card" style="text-align:center;padding:32px;">
+            <div style="font-size:2rem;">❌</div>
+            <div style="margin-top:10px;">Queue not found.</div>
+          </div>`;
+        return;
+      }
+ 
+      if (!getToken()) {
+        renderNotLoggedIn(queueInfo);
+        return;
+      }
+ 
+      await renderAttendee(eventCode, queueCode, queueInfo);
+    }
+ 
+    function renderNotLoggedIn(queueInfo) {
+      document.getElementById('attendee-content').innerHTML = `
+        <div class="attendee-header">
+          <h1>${queueInfo.event?.name || 'Event'}</h1>
+          <p>${queueInfo.queue?.name || 'Queue'}</p>
+        </div>
+        <div class="glass queue-card" style="text-align:center;padding:32px;">
+          <div style="font-size:2.5rem;">🎟️</div>
+          <div style="margin:12px 0;">Log in to join this queue and receive notifications.</div>
+          <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:14px;">
+            <a href="/login?redirect=${encodeURIComponent(window.location.href)}" class="btn btn-primary">Log in</a>
+            <a href="/register" class="btn btn-ghost">Register</a>
+          </div>
+        </div>
+        <div class="glass queue-card" style="margin-top:12px;">
+          <div class="info-row"><span class="info-row-label">Waiting</span><span class="info-row-value highlight">${queueInfo.total_in_queue || 0} people</span></div>
+          <div class="info-row"><span class="info-row-label">Estimated wait</span><span class="info-row-value">${queueInfo.est_wait_minutes || 0} min</span></div>
+          <div class="info-row"><span class="info-row-label">Queue status</span><span class="info-row-value">${queueInfo.queue?.status || 'unknown'}</span></div>
+        </div>
+      `;
+    }
+ 
+    async function renderAttendee(eventCode, queueCode, queueInfo) {
+      // Resolve queue ID from display data (we need to get queueId for authenticated calls)
+      // We'll call status first; if no entry, show join UI
+      try {
+        // Find queue ID by looking at current status (needs to resolve via event/queue codes)
+        // Use the join URL from queueInfo to reconstruct the lookup
+        // For now fetch the queue metadata from display endpoint
+        await refreshStatus(eventCode, queueCode, queueInfo);
+        pollTimer = setInterval(() => refreshStatus(eventCode, queueCode, queueInfo, true), 5000);
+      } catch (err) {
+        document.getElementById('attendee-content').innerHTML = `
+          <div class="glass queue-card" style="text-align:center;padding:32px;">
+            <div>${err.message}</div>
+          </div>`;
+      }
+    }
+ 
+    // Resolve queueId from event/queue codes
+    async function resolveQueueId(eventCode, queueCode) {
+      const res = await fetch(`/api/display/${eventCode}/${queueCode}`);
+      if (!res.ok) throw new Error('Queue not found');
+      // We need the actual DB queue ID; display endpoint doesn't expose it.
+      // We call a dedicated lookup via the attendee status route.
+      // Instead, we store queueId on window after first successful API call.
+      return window._resolvedQueueId || null;
+    }
+ 
+    async function refreshStatus(eventCode, queueCode, queueInfo, silent = false) {
+      const content = document.getElementById('attendee-content');
+      if (!content) return;
+ 
+      try {
+        // We need queueId — fetch it if not cached
+        if (!window._resolvedQueueId) {
+          // Use admin/display endpoint to resolve
+          const displayRes = await fetch(`/api/display/${eventCode}/${queueCode}`);
+          if (!displayRes.ok) throw new Error('Queue not found');
+          // queueId not in display response; use events API to resolve
+          const { events } = await api('/events').catch(() => ({ events: [] }));
+          for (const ev of events) {
+            const { queues } = await api(`/queues?event_id=${ev.id}`).catch(() => ({ queues: [] }));
+            const match = (queues || []).find(q => q.access_code === queueCode);
+            if (match) { window._resolvedQueueId = match.id; break; }
+          }
+        }
+ 
+        if (!window._resolvedQueueId) {
+          // Attendee isn't an editor; try the attendee status route with a lightweight display fetch
+          // Show join UI with queue info only
+          renderJoinUI(queueInfo, null);
+          return;
+        }
+ 
+        const queueId = window._resolvedQueueId;
+        const data = await api(`/queues/${queueId}/status`);
+ 
+        // Merge with live display data
+        const displayRes = await fetch(`/api/display/${eventCode}/${queueCode}`);
+        const display = displayRes.ok ? await displayRes.json() : {};
+ 
+        renderStatusUI(data, display, queueId, queueInfo);
+      } catch (err) {
+        if (!silent) {
+          content.innerHTML = `<div class="glass queue-card" style="text-align:center;padding:32px;">${err.message}</div>`;
+        }
+      }
+    }
+ 
+    function renderStatusUI(data, display, queueId, queueInfo) {
+      const content = document.getElementById('attendee-content');
+      if (!content) return;
+ 
+      const queue = data.queue || {};
+      const entry = data.entry;
+      const isServing = entry?.status === 'serving';
+      const isWaiting = entry?.status === 'waiting';
+      const isMissed  = entry?.status === 'missed';
+ 
+      let qrBlock = '';
+      if (isServing && data.qr_data_url) {
+        qrBlock = `
+          <div style="text-align:center;margin:20px 0;">
+            <div class="text-sm text-muted" style="margin-bottom:12px;">Show this QR code at the entrance</div>
+            <div class="qr-wrapper" style="margin:0 auto;">
+              <div class="qr-border-ring"></div>
+              <div class="qr-border-inner"></div>
+              <img src="${data.qr_data_url}" alt="Entry QR Code" />
+            </div>
+            <div class="text-sm text-muted" style="margin-top:10px;">Single-use · Valid until scanned</div>
+          </div>
+        `;
+      }
+ 
+      let statusBanner = '';
+      if (isServing) {
+        statusBanner = `<div style="background:var(--status-serving);color:#fff;padding:12px;border-radius:var(--radius-sm);text-align:center;margin-bottom:14px;font-size:1.05rem;">🎉 It's your turn! Proceed to the entrance.</div>`;
+      } else if (isMissed) {
+        statusBanner = `<div style="background:var(--status-missed);color:#fff;padding:12px;border-radius:var(--radius-sm);text-align:center;margin-bottom:14px;">😔 You missed your turn. You can rejoin below.</div>`;
+      }
+ 
+      content.innerHTML = `
+        <div class="attendee-header">
+          <div style="font-size:1.4rem;">${queue.event_name || queueInfo?.event?.name || 'Event'}</div>
+          <div class="text-muted" style="font-size:0.9rem;">${queue.name || queueInfo?.queue?.name || 'Queue'}</div>
+        </div>
+ 
+        ${statusBanner}
+ 
+        ${entry ? `
+          <div class="glass queue-card">
+            <div class="your-number">
+              <div class="your-number-label">Your Queue Number</div>
+              <div class="your-number-badge queue-number-lg ${entry.status}">${entry.queue_number}</div>
+            </div>
+            ${qrBlock}
+            <div class="info-row">
+              <span class="info-row-label">Status</span>
+              <span class="info-row-value">${entry.status}</span>
+            </div>
+            ${isWaiting ? `
+              <div class="info-row">
+                <span class="info-row-label">Position</span>
+                <span class="info-row-value highlight">#${entry.position} in queue</span>
+              </div>
+            ` : ''}
+            <div class="info-row">
+              <span class="info-row-label">Waiting ahead</span>
+              <span class="info-row-value">${data.waiting_count || 0} people</span>
+            </div>
+            <div class="info-row">
+              <span class="info-row-label">Served so far</span>
+              <span class="info-row-value">${data.served_count || 0}</span>
+            </div>
+          </div>
+ 
+          <!-- Notification preferences -->
+          <div class="glass queue-card" style="margin-top:12px;">
+            <div class="section-label">Notifications (via Telegram)</div>
+            <div class="notify-toggles">
+              <div class="notify-toggle-row">
+                <span>Alert when it's my turn</span>
+                <label class="toggle">
+                  <input type="checkbox" id="toggle-serving" ${entry.notify_serving ? 'checked' : ''} />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="notify-toggle-row">
+                <span>Alert when I'm next in line</span>
+                <label class="toggle">
+                  <input type="checkbox" id="toggle-next" ${entry.notify_next ? 'checked' : ''} />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+ 
+          <div class="attendee-actions">
+            ${isMissed ? `<button class="btn btn-primary w-full" id="rejoin-btn">Rejoin Queue</button>` : ''}
+            ${!isServing ? `<button class="btn btn-danger w-full" id="leave-btn">Leave Queue</button>` : ''}
+          </div>
+        ` : `
+          <!-- Not in queue -->
+          <div class="glass queue-card">
+            <div style="text-align:center;padding:10px 0 16px;">
+              <div style="font-size:2.5rem;">🎟️</div>
+              <div style="margin:10px 0;font-size:1.05rem;">Join the queue</div>
+              <div class="text-sm text-muted">
+                ${display.total_in_queue || 0} people waiting &nbsp;·&nbsp; ~${display.est_wait_minutes || 0} min
+              </div>
+              ${queue.status !== 'open' ? `<div style="margin-top:10px;color:var(--status-missed);">This queue is currently closed.</div>` : ''}
+            </div>
+            <div class="info-row"><span class="info-row-label">Queue status</span><span class="info-row-value">${queue.status}</span></div>
+            <div class="info-row"><span class="info-row-label">People served</span><span class="info-row-value">${data.served_count || 0}</span></div>
+ 
+            ${!data.telegram_linked ? `
+              <div style="background:rgba(249,115,22,0.12);border:1px solid rgba(249,115,22,0.3);border-radius:var(--radius-sm);padding:12px;margin-top:12px;font-size:0.88rem;">
+                ⚠️ You must <a href="/dashboard" style="color:var(--status-missed);text-decoration:underline;">link your Telegram account</a> before joining a queue.
+              </div>
+            ` : ''}
+ 
+            <button class="btn btn-primary w-full" id="join-btn" style="margin-top:16px;" ${queue.status !== 'open' || !data.telegram_linked ? 'disabled' : ''}>
+              Join Queue
+            </button>
+          </div>
+        `}
+      `;
+ 
+      // Attach events
+      if (entry) {
+        // Notify toggles
+        document.getElementById('toggle-serving')?.addEventListener('change', async (e) => {
+          await api(`/queues/${queueId}/notify-prefs`, { method: 'PUT', body: { notify_serving: e.target.checked } }).catch(() => {});
+        });
+        document.getElementById('toggle-next')?.addEventListener('change', async (e) => {
+          await api(`/queues/${queueId}/notify-prefs`, { method: 'PUT', body: { notify_next: e.target.checked } }).catch(() => {});
+        });
+ 
+        // Leave
+        document.getElementById('leave-btn')?.addEventListener('click', async () => {
+          if (!confirm('Leave this queue?')) return;
+          try {
+            await api(`/queues/${queueId}/leave`, { method: 'POST' });
+            toast('Left queue', 'info');
+            window._resolvedQueueId = null;
+            await refreshStatus(eventCode, queueCode, queueInfo);
+          } catch (err) { toast(err.message, 'error'); }
+        });
+ 
+        // Rejoin (missed → leave then re-join)
+        document.getElementById('rejoin-btn')?.addEventListener('click', async () => {
+          try {
+            await api(`/queues/${queueId}/leave`, { method: 'POST' });
+            await api(`/queues/${queueId}/join`, { method: 'POST' });
+            toast('Rejoined queue!', 'success');
+            await refreshStatus(eventCode, queueCode, queueInfo);
+          } catch (err) { toast(err.message, 'error'); }
+        });
+      } else {
+        // Join
+        document.getElementById('join-btn')?.addEventListener('click', async () => {
+          const btn = document.getElementById('join-btn');
+          btn.disabled = true;
+          btn.textContent = 'Joining…';
+          try {
+            await api(`/queues/${queueId}/join`, { method: 'POST' });
+            toast('Joined queue!', 'success');
+            await refreshStatus(eventCode, queueCode, queueInfo);
+          } catch (err) {
+            toast(err.message, 'error');
+            btn.disabled = false;
+            btn.textContent = 'Join Queue';
+          }
+        });
+      }
+    }
+ 
+    function renderJoinUI(queueInfo) {
+      document.getElementById('attendee-content').innerHTML = `
+        <div class="attendee-header">
+          <div style="font-size:1.4rem;">${queueInfo?.event?.name || 'Event'}</div>
+          <div class="text-muted">${queueInfo?.queue?.name || 'Queue'}</div>
+        </div>
+        <div class="glass queue-card" style="text-align:center;padding:28px;">
+          <div style="font-size:2.5rem;">🎟️</div>
+          <div style="margin:12px 0;">${queueInfo?.total_in_queue || 0} people waiting</div>
+          <div class="text-sm text-muted">~${queueInfo?.est_wait_minutes || 0} min estimated</div>
+          <div style="margin-top:16px;">
+            <a href="/login?redirect=${encodeURIComponent(window.location.href)}" class="btn btn-primary">Log in to join</a>
+          </div>
+        </div>
+      `;
+    }
+ 
+    // Cleanup on unload
+    window.addEventListener('beforeunload', () => {
+      if (pollTimer) clearInterval(pollTimer);
+    });
+  </script>
+
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js');
+        }
+    </script>
+
+</body>
+
+</html>
