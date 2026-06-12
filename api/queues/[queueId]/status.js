@@ -55,8 +55,9 @@ export default async function handler(req, res) {
 
     // If serving, fetch or create QR token
     let qr_data_url = null;
+    let tokenRow = null;
     if (entry.status === 'serving') {
-        let { data: tokenRow } = await supabase
+        const { data: existingToken } = await supabase
             .from('gftvqueue_entry_tokens')
             .select('token')
             .eq('entry_id', entry.id)
@@ -64,6 +65,7 @@ export default async function handler(req, res) {
             .order('created_at', { ascending: false })
             .limit(1)
             .maybeSingle();
+        tokenRow = existingToken;
 
         if (!tokenRow) {
             const { data: newToken } = await supabase
