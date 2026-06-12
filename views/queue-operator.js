@@ -184,10 +184,17 @@ function buildCol(title, status, entries, isServing) {
 function buildEntryCard(entry, status) {
     let actions = '';
     if (status === 'serving') {
-        actions = `
-      <button class="entry-action-btn success mark-done-btn" data-id="${entry.id}" title="Mark complete">${Icons.check}</button>
+        const hasEntered = !!entry.entered_at;
+        if (hasEntered) {
+            actions = `
+      <button class="entry-action-btn success manual-exit-btn" data-id="${entry.id}" title="Manual exit (QR unavailable)">${Icons.x}</button>
+    `;
+        } else {
+            actions = `
+      <button class="entry-action-btn success mark-entered-btn" data-id="${entry.id}" title="Confirm entrance">${Icons.check}</button>
       <button class="entry-action-btn danger mark-missed-btn" data-id="${entry.id}" title="Mark missed">${Icons.x}</button>
     `;
+        }
     } else if (status === 'missed') {
         actions = `<button class="entry-action-btn rejoin-btn" data-id="${entry.id}" title="Move back to waiting">${Icons.refresh}</button>`;
     }
@@ -325,22 +332,6 @@ function attachOperatorEvents(container, user, navigate, queueId, eventId, queue
     });
 
     container.addEventListener('click', async (e) => {
-        const markDone = e.target.closest('.mark-done-btn');
-        if (markDone) {
-            try {
-                await api(`/queues/${queueId}/operate`, {
-                    method: 'POST',
-                    body: {
-                        action: 'mark_complete',
-                        entry_id: markDone.dataset.id
-                    }
-                });
-                toast('Marked complete', 'success');
-                await loadOperatorView(container, user, navigate, queueId, eventId, true);
-            } catch (err) {
-                toast(err.message, 'error');
-            }
-        }
 
         const markMissed = e.target.closest('.mark-missed-btn');
         if (markMissed) {
@@ -353,6 +344,40 @@ function attachOperatorEvents(container, user, navigate, queueId, eventId, queue
                     }
                 });
                 toast('Marked as missed', 'info');
+                await loadOperatorView(container, user, navigate, queueId, eventId, true);
+            } catch (err) {
+                toast(err.message, 'error');
+            }
+        }
+
+        const markEntered = e.target.closest('.mark-entered-btn');
+        if (markEntered) {
+            try {
+                await api(`/queues/${queueId}/operate`, {
+                    method: 'POST',
+                    body: {
+                        action: 'mark_entered',
+                        entry_id: markEntered.dataset.id
+                    }
+                });
+                toast('Entrance confirmed', 'success');
+                await loadOperatorView(container, user, navigate, queueId, eventId, true);
+            } catch (err) {
+                toast(err.message, 'error');
+            }
+        }
+
+        const manualExit = e.target.closest('.manual-exit-btn');
+        if (manualExit) {
+            try {
+                await api(`/queues/${queueId}/operate`, {
+                    method: 'POST',
+                    body: {
+                        action: 'mark_complete',
+                        entry_id: manualExit.dataset.id
+                    }
+                });
+                toast('Manually exited', 'success');
                 await loadOperatorView(container, user, navigate, queueId, eventId, true);
             } catch (err) {
                 toast(err.message, 'error');

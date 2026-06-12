@@ -230,6 +230,28 @@ export default async function handler(req, res) {
         });
     }
 
+    // ── MARK ENTERED (manual entrance confirmation) ───────────────────────────
+    if (action === 'mark_entered') {
+        if (!entry_id) return res.status(400).json({ error: 'entry_id required' });
+
+        const { data: entry } = await supabase
+            .from('gftvqueue_entries')
+            .select('id, queue_number, telegram_user_id, status, entered_at')
+            .eq('id', entry_id)
+            .single();
+
+        if (!entry) return res.status(404).json({ error: 'Entry not found' });
+        if (entry.status !== 'serving') return res.status(400).json({ error: 'Entry must be in serving state' });
+        if (entry.entered_at) return res.status(409).json({ error: 'Entry already marked as entered' });
+
+        await supabase.from('gftvqueue_entries').update({ entered_at: new Date().toISOString() }).eq('id', entry_id);
+
+        const tgMsg = `🚪 *Entrance confirmed!*\n\nNumber: *#${entry.queue_number}*\n\nWelcome! Show your QR code again when you exit.`;
+        await sendTelegramMessage(entry.telegram_user_id, tgMsg);
+
+        return res.status(200).json({ message: 'Marked as entered' });
+    }
+
     // ── REJOIN (move missed → waiting) ───────────────────────────────────────
     if (action === 'rejoin') {
         if (!entry_id) return res.status(400).json({ error: 'entry_id required' });

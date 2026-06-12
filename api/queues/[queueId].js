@@ -59,7 +59,7 @@ export default async function handler(req, res) {
             data: entries
         } = await supabase
             .from('gftvqueue_entries')
-            .select('id, queue_number, status, display_name, telegram_username, joined_at, called_at')
+            .select('id, queue_number, status, display_name, telegram_username, joined_at, called_at, entered_at')
             .eq('queue_id', queueId)
             .order('queue_number', {
                 ascending: true

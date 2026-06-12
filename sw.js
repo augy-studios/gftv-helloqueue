@@ -1,4 +1,4 @@
-const CACHE = "helloqueue-v32";
+const CACHE = "helloqueue-v33";
 
 const ASSETS = [
   "/",
