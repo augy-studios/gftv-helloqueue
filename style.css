@@ -135,6 +135,9 @@
 /* ── HelloTheme ─────────────────────────────────────────────────────────────── */
 [data-theme="hello"] {
   --bg: #fedc00;
+  --brand: #ffffff;
+  --brand-dark: #333333;
+  --brand-text: #111111;
   --surface: rgba(255, 255, 255, 0.65);
   --surface-2: rgba(255, 255, 255, 0.40);
   --border: rgba(0, 0, 0, 0.12);
