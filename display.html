@@ -268,10 +268,12 @@
         const entriesMap = Object.fromEntries((serving_entries || []).map(e => [e.queue_number, e]));
         return serving.map(n => {
           const entry = entriesMap[n];
-          const badge = entry?.entered_at
+          const isIn = !!entry?.entered_at;
+          const badge = isIn
             ? `<span style="font-size:0.55rem;background:rgba(255,255,255,0.25);border-radius:4px;padding:2px 5px;display:block;margin-top:4px;letter-spacing:0.05em;">IN</span>`
             : `<span style="font-size:0.55rem;background:rgba(255,255,255,0.15);border-radius:4px;padding:2px 5px;display:block;margin-top:4px;letter-spacing:0.05em;">OUT</span>`;
-          return `<div class="serving-number-big" style="display:flex;flex-direction:column;align-items:center;">${n}${badge}</div>`;
+          const bgStyle = isIn ? 'background:#22c55e;' : '';
+          return `<div class="serving-number-big" style="display:flex;flex-direction:column;align-items:center;${bgStyle}">${n}${badge}</div>`;
         }).join('');
       }
  
@@ -288,10 +290,12 @@
             const entriesMap = Object.fromEntries(serving_entries.map(e => [e.queue_number, e]));
             servingEl.innerHTML = serving.map(n => {
               const entry = entriesMap[n];
-              const badge = entry?.entered_at
+              const isIn = !!entry?.entered_at;
+              const badge = isIn
                 ? `<span style="font-size:0.55rem;background:rgba(255,255,255,0.25);border-radius:4px;padding:2px 5px;display:block;margin-top:4px;letter-spacing:0.05em;">IN</span>`
                 : `<span style="font-size:0.55rem;background:rgba(255,255,255,0.15);border-radius:4px;padding:2px 5px;display:block;margin-top:4px;letter-spacing:0.05em;">OUT</span>`;
-              return `<div class="serving-number-big ${newlyServed.includes(n) ? 'pop-in' : ''}" style="display:flex;flex-direction:column;align-items:center;">${n}${badge}</div>`;
+              const bgStyle = isIn ? 'background:#22c55e;' : '';
+              return `<div class="serving-number-big ${newlyServed.includes(n) ? 'pop-in' : ''}" style="display:flex;flex-direction:column;align-items:center;${bgStyle}">${n}${badge}</div>`;
             }).join('');
           }
         }
