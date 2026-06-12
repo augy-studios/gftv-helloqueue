@@ -230,6 +230,24 @@ export default async function handler(req, res) {
         });
     }
 
+    // ── REJOIN (move missed → waiting) ───────────────────────────────────────
+    if (action === 'rejoin') {
+        if (!entry_id) return res.status(400).json({ error: 'entry_id required' });
+
+        const { data: entry } = await supabase
+            .from('gftvqueue_entries')
+            .select('id, queue_number, telegram_user_id, status')
+            .eq('id', entry_id)
+            .single();
+
+        if (!entry) return res.status(404).json({ error: 'Entry not found' });
+        if (entry.status !== 'missed') return res.status(400).json({ error: 'Entry must be in missed state to rejoin' });
+
+        await supabase.from('gftvqueue_entries').update({ status: 'waiting' }).eq('id', entry_id);
+
+        return res.status(200).json({ message: 'Entry moved back to waiting' });
+    }
+
     return res.status(400).json({
         error: 'Unknown action'
     });

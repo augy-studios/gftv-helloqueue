@@ -17,7 +17,7 @@ export default async function handler(req, res) {
         .select('id, status, queue_number')
         .eq('queue_id', queueId)
         .eq('telegram_user_id', telegram_user_id)
-        .in('status', ['waiting', 'serving'])
+        .in('status', ['waiting', 'serving', 'missed'])
         .maybeSingle();
 
     if (!entry) return res.status(404).json({ error: 'You are not in this queue' });

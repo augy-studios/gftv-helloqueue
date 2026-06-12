@@ -354,6 +354,23 @@ function attachOperatorEvents(container, user, navigate, queueId, eventId, queue
                 toast(err.message, 'error');
             }
         }
+
+        const rejoin = e.target.closest('.rejoin-btn');
+        if (rejoin) {
+            try {
+                await api(`/queues/${queueId}/operate`, {
+                    method: 'POST',
+                    body: {
+                        action: 'rejoin',
+                        entry_id: rejoin.dataset.id
+                    }
+                });
+                toast('Moved back to waiting', 'success');
+                await loadOperatorView(container, user, navigate, queueId, eventId, true);
+            } catch (err) {
+                toast(err.message, 'error');
+            }
+        }
     });
 
     let stream = null;
