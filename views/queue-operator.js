@@ -394,7 +394,7 @@ async function validateToken(token, queueId) {
             }
         });
         resultEl.className = 'scanner-result valid';
-        resultEl.innerHTML = `${Icons.check} Validated — marked served.<br><strong>#${data.queue_number} · ${data.name}</strong>`;
+        resultEl.innerHTML = `${Icons.check} Validated - marked served.<br><strong>#${data.queue_number} · ${data.name}</strong>`;
         resultEl.style.display = 'block';
         document.getElementById('manual-token').value = '';
     } catch (err) {

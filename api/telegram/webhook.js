@@ -1,4 +1,4 @@
-// Telegram webhook — set via BotFather: /setwebhook https://queue.gftv.asia/api/telegram/webhook
+// Telegram webhook - set via BotFather: /setwebhook https://queue.gftv.asia/api/telegram/webhook
 import { supabase } from '../_supabase.js';
 import { handleCors } from '../_auth.js';
 import { sendTelegramMessage } from '../_telegram.js';
@@ -38,9 +38,9 @@ export default async function handler(req, res) {
             ``,
             `Here's what I can do:`,
             ``,
-            `🎟 */attend \\<CODE\\>* — Connect your Telegram to a queue session\\. Get the code from the queue page\\.`,
-            `🔗 */link \\<OTP\\>* — Link your Telegram to a HelloQueue dashboard account\\. Get the OTP from your dashboard settings\\.`,
-            `❓ */help* — Show this message\\.`,
+            `🎟 */attend \\<CODE\\>* - Connect your Telegram to a queue session\\. Get the code from the queue page\\.`,
+            `🔗 */link \\<OTP\\>* - Link your Telegram to a HelloQueue dashboard account\\. Get the OTP from your dashboard settings\\.`,
+            `❓ */help* - Show this message\\.`,
             ``,
             `To join a queue, visit the queue link and tap *Connect Telegram*\\.`,
         ].join('\n'), { parse_mode: 'MarkdownV2' });
@@ -114,7 +114,7 @@ async function handleAttendLogin(chatId, from, code) {
         .eq('id', loginCode.id);
 
     await sendTelegramMessage(chatId,
-        `✅ *You're connected!*\n\nYou can now go back to the queue page — it will load automatically.\n\nYou'll receive Telegram notifications here when it's your turn.`
+        `✅ *You're connected!*\n\nYou can now go back to the queue page - it will load automatically.\n\nYou'll receive Telegram notifications here when it's your turn.`
     );
 }
 

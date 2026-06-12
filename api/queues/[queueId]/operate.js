@@ -243,7 +243,7 @@ async function notifyServing(telegramUserId, queueNumber, queueName) {
 
 async function notifyNext(telegramUserId, queueNumber, queueName) {
     if (!telegramUserId) return;
-    const msg = `⏰ *You're next in line!*\n\nQueue: ${queueName}\nNumber: *#${queueNumber}*\n\nGet ready — you'll be called soon.`;
+    const msg = `⏰ *You're next in line!*\n\nQueue: ${queueName}\nNumber: *#${queueNumber}*\n\nGet ready - you'll be called soon.`;
     await sendTelegramMessage(telegramUserId, msg);
 }
 

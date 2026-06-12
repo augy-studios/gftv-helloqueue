@@ -112,7 +112,7 @@
             initAttendee(eventCode, queueCode);
         }
 
-        // Token helpers — stored separately so the queue page works without a dashboard login.
+        // Token helpers - stored separately so the queue page works without a dashboard login.
 
         function getAttendeeToken() {
             return localStorage.getItem('hq_attendee_token') || getToken();
@@ -138,7 +138,7 @@
             });
             const data = await res.json();
             if (!res.ok) {
-                // Session invalidated from another browser — clear and re-prompt
+                // Session invalidated from another browser - clear and re-prompt
                 if (res.status === 401) clearAttendeeToken();
                 throw new Error(data.error || 'Request failed');
             }
@@ -366,7 +366,7 @@
                 </div>
                 <div class="glass queue-card">
                     <div class="info-row"><span class="info-row-label">Status</span><span class="info-row-value">${queueStatus}</span></div>
-                    <div class="info-row"><span class="info-row-label">Now serving</span><span class="info-row-value highlight">${display?.serving?.[0] ?? '—'}</span></div>
+                    <div class="info-row"><span class="info-row-label">Now serving</span><span class="info-row-value highlight">${display?.serving?.[0] ?? '-'}</span></div>
                     <div class="info-row"><span class="info-row-label">Waiting</span><span class="info-row-value">${display?.total_in_queue || 0} people</span></div>
                     <div class="info-row"><span class="info-row-label">Est. wait</span><span class="info-row-value">~${display?.est_wait_minutes || 0} min</span></div>
                 </div>

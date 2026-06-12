@@ -1,4 +1,4 @@
-// node index.js — requires TELEGRAM_BOT_TOKEN, SUPABASE_URL, SUPABASE_SERVICE_KEY, WEBAPP_URL
+// node index.js - requires TELEGRAM_BOT_TOKEN, SUPABASE_URL, SUPABASE_SERVICE_KEY, WEBAPP_URL
 import 'dotenv/config';
 import TelegramBot from 'node-telegram-bot-api';
 import {
@@ -61,13 +61,13 @@ bot.onText(/\/start(?:\s+(.+))?/, async (msg, match) => {
 bot.onText(/\/help/, async (msg) => {
     await bot.sendMessage(msg.chat.id,
         `*GFTV HelloQueue Bot Commands*\n\n` +
-        `🎟️ /attend <CODE> — Connect your Telegram to a queue session. Get the code from the queue page.\n` +
-        `🔗 /link <OTP> — Link your Telegram to a HelloQueue dashboard account. Get the OTP from dashboard settings.\n` +
-        `🔓 /unlink — Unlink your Telegram from your dashboard account.\n` +
-        `📋 /status — Check your current queue status.\n` +
-        `🚪 /leavequeue — Leave your current queue.\n` +
-        `🔔 /notify — Toggle turn and next-in-line notifications.\n` +
-        `❓ /help — Show this message.`, {
+        `🎟️ /attend <CODE> - Connect your Telegram to a queue session. Get the code from the queue page.\n` +
+        `🔗 /link <OTP> - Link your Telegram to a HelloQueue dashboard account. Get the OTP from dashboard settings.\n` +
+        `🔓 /unlink - Unlink your Telegram from your dashboard account.\n` +
+        `📋 /status - Check your current queue status.\n` +
+        `🚪 /leavequeue - Leave your current queue.\n` +
+        `🔔 /notify - Toggle turn and next-in-line notifications.\n` +
+        `❓ /help - Show this message.`, {
             parse_mode: 'Markdown'
         }
     );
@@ -135,7 +135,7 @@ async function handleAttendLogin(chatId, from, code) {
         .eq('id', loginCode.id);
 
     await bot.sendMessage(chatId,
-        `✅ *You're connected!*\n\nYou can now go back to the queue page — it will load automatically.\n\nYou'll receive Telegram notifications here when it's your turn.`, {
+        `✅ *You're connected!*\n\nYou can now go back to the queue page - it will load automatically.\n\nYou'll receive Telegram notifications here when it's your turn.`, {
             parse_mode: 'Markdown'
         }
     );

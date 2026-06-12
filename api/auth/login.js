@@ -76,7 +76,7 @@ export default async function handler(req, res) {
                 .single();
 
             if (trusted && new Date(trusted.expires_at) > new Date()) {
-                // Trusted device — skip TOTP, issue session directly
+                // Trusted device - skip TOTP, issue session directly
                 const token = uuidv4();
                 const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
                 await supabase.from('gftvhello_sessions').insert({ user_id: user.id, token, expires_at: expiresAt });

@@ -80,7 +80,7 @@ export default async function handler(req, res) {
     // Entry must be in 'serving' state
     if (entry.status === 'missed') {
         return res.status(400).json({
-            error: 'This attendee was marked as missed — they must rejoin the queue.',
+            error: 'This attendee was marked as missed - they must rejoin the queue.',
             valid: false,
             name: entry.display_name,
             queue_number: entry.queue_number,
@@ -117,7 +117,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
         valid: true,
-        message: 'Validated — marked served.',
+        message: 'Validated - marked served.',
         queue_number: entry.queue_number,
         name: entry.display_name,
     });

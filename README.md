@@ -11,10 +11,10 @@
 
 | Layer | Tech |
 |---|---|
-| Hosting | Vercel (Pro) — serverless functions + static files |
+| Hosting | Vercel (Pro) - serverless functions + static files |
 | Database | Supabase (PostgreSQL) |
-| Bot | Node.js — runs on Debian 13 VPS via tmux |
-| Frontend | Vanilla HTML/CSS/JS — PWA, no framework |
+| Bot | Node.js - runs on Debian 13 VPS via tmux |
+| Frontend | Vanilla HTML/CSS/JS - PWA, no framework |
 | Notifications | Telegram Bot API |
 | Font | Jua (Google Fonts) |
 | Themes | Light, HelloTheme (`#fedc00`) |
@@ -36,13 +36,13 @@ helloqueue/
 │   ├── _telegram.js                    # sendTelegramMessage() HTTP helper
 │   │
 │   ├── auth/
-│   │   ├── login.js                    # POST — username + password login
-│   │   ├── logout.js                   # POST — delete session token
-│   │   ├── me.js                       # GET  — current user + telegram link status
-│   │   └── register.js                 # POST — create account (pending approval)
+│   │   ├── login.js                    # POST - username + password login
+│   │   ├── logout.js                   # POST - delete session token
+│   │   ├── me.js                       # GET  - current user + telegram link status
+│   │   └── register.js                 # POST - create account (pending approval)
 │   │
 │   ├── admin/
-│   │   └── users.js                    # GET/PUT — list, approve, toggle roles (admin only)
+│   │   └── users.js                    # GET/PUT - list, approve, toggle roles (admin only)
 │   │
 │   ├── user/
 │   │   └── telegram-link.js            # GET (generate OTP) / DELETE (unlink Telegram)
@@ -57,19 +57,19 @@ helloqueue/
 │   │   ├── index.js                    # GET list / POST create (event editor+)
 │   │   ├── [queueId].js                # GET (with grouped entries) / PUT / DELETE
 │   │   └── [queueId]/
-│   │       ├── join.js                 # POST — attendee joins queue
-│   │       ├── leave.js                # POST — attendee leaves queue
-│   │       ├── operate.js              # POST — call_next, call_batch, mark_missed, mark_complete
-│   │       ├── scan.js                 # POST — validate one-time QR entry token
-│   │       ├── status.js               # GET  — own queue status + QR data URL if serving
-│   │       ├── notify-prefs.js         # PUT  — toggle notify_serving / notify_next
+│   │       ├── join.js                 # POST - attendee joins queue
+│   │       ├── leave.js                # POST - attendee leaves queue
+│   │       ├── operate.js              # POST - call_next, call_batch, mark_missed, mark_complete
+│   │       ├── scan.js                 # POST - validate one-time QR entry token
+│   │       ├── status.js               # GET  - own queue status + QR data URL if serving
+│   │       ├── notify-prefs.js         # PUT  - toggle notify_serving / notify_next
 │   │       └── permissions.js          # GET / POST / DELETE queue-level operator perms
 │   │
 │   └── display/
 │       └── [eventCode]/
-│           └── [queueCode].js          # GET — public polling endpoint (no auth, 5s interval)
+│           └── [queueCode].js          # GET - public polling endpoint (no auth, 5s interval)
 │
-├── bot/                                # Telegram bot — runs on Debian 13 VPS
+├── bot/                                # Telegram bot - runs on Debian 13 VPS
 │   ├── index.js                        # Full bot: /start /link /unlink /joinqueue /status /leavequeue /notify
 │   └── package.json
 │
@@ -77,10 +77,10 @@ helloqueue/
 ├── login.html                          # Login (username + password)
 ├── register.html                       # Register (pending approval flow)
 ├── dashboard.html                      # Operator dashboard (SPA with sidebar nav)
-├── attendee.html                       # Attendee queue page — join, status, animated QR
-├── display.html                        # TV display screen — polls every 5s, no auth
+├── attendee.html                       # Attendee queue page - join, status, animated QR
+├── display.html                        # TV display screen - polls every 5s, no auth
 ├── manifest.json                       # PWA manifest
-├── style.css                           # Full stylesheet — Light + HelloTheme, glassmorphism
+├── style.css                           # Full stylesheet - Light + HelloTheme, glassmorphism
 └── script.js                           # Shared: Icons SVG, theme, toast, auth, api(), topbar
 ```
 
@@ -187,7 +187,7 @@ node index.js
 ```
 
 ### 4. PWA Icons
-Add `icon-192.png` and `icon-512.png` to the root directory (any square images — 192×192 and 512×512 px).
+Add `icon-192.png` and `icon-512.png` to the root directory (any square images - 192×192 and 512×512 px).
 
 ---
 

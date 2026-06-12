@@ -14,7 +14,7 @@ export async function renderProfileView(container, {
         <div class="section-label">Account</div>
         <div class="info-row"><span class="info-row-label">Display Name</span><span>${user.display_name}</span></div>
         <div class="info-row"><span class="info-row-label">Username</span><span>@${user.username}</span></div>
-        <div class="info-row"><span class="info-row-label">Email</span><span>${user.email || '—'}</span></div>
+        <div class="info-row"><span class="info-row-label">Email</span><span>${user.email || '-'}</span></div>
         <div class="info-row">
           <span class="info-row-label">Role</span>
           <span>${user.is_admin ? 'Admin' : user.is_editor ? 'Editor' : 'Approved User'}</span>

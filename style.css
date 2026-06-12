@@ -551,7 +551,7 @@ textarea:focus {
   overflow: hidden;
 }
 
-/* Spinning conic gradient sits behind the QR image — only visible in the 4px padding gap */
+/* Spinning conic gradient sits behind the QR image - only visible in the 4px padding gap */
 .qr-wrapper::before {
   content: '';
   position: absolute;
