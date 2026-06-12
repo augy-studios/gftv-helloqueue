@@ -622,6 +622,8 @@ async function handleJoinQueueById(chatId, queueId) {
         display_name: user?.display_name || 'Unknown',
         queue_number,
         status: 'waiting',
+        notify_serving: true,
+        notify_next: true,
     });
 
     const atCapacity = servingCount >= queue.max_serving;
