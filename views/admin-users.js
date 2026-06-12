@@ -72,8 +72,8 @@ async function loadUsers(currentUser, filter, search = '') {
         }
 
         wrap.innerHTML = `
-      <div class="glass" style="overflow:hidden;">
-        <table style="width:100%;border-collapse:collapse;">
+      <div class="glass" style="overflow-x:auto;">
+        <table style="width:100%;min-width:640px;border-collapse:collapse;">
           <thead>
             <tr style="border-bottom:1px solid var(--border);font-size:0.8rem;color:var(--text-muted);">
               <th style="padding:10px 14px;text-align:left;font-weight:400;">User</th>
