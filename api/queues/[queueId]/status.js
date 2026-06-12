@@ -105,6 +105,7 @@ export default async function handler(req, res) {
             notify_next: entry.notify_next,
         },
         qr_data_url,
+        qr_token: qr_data_url ? tokenRow?.token ?? null : null,
         queue: { name: queue.name, status: queue.status, event_name: queue.gftvqueue_events?.name },
         waiting_count: waitingCount || 0,
         served_count: servedCount || 0,

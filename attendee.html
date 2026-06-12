@@ -224,7 +224,13 @@
                         <div class="qr-wrapper">
                             <img src="${data.qr_data_url}" alt="Entry QR Code" />
                         </div>
-                        <div class="text-sm text-muted" style="margin-top:10px;">Single-use · Valid until scanned</div>
+                        ${data.qr_token ? `
+                        <div id="qr-token-copy" title="Tap to copy"
+                            style="display:inline-flex;align-items:center;gap:8px;margin-top:14px;padding:8px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;user-select:none;font-family:monospace;font-size:0.82rem;letter-spacing:0.04em;color:var(--text);">
+                            <span id="qr-token-text">${data.qr_token}</span>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        </div>` : ''}
+                        <div class="text-sm text-muted" style="margin-top:8px;">Single-use · Valid until scanned</div>
                     </div>`;
             }
 
@@ -311,6 +317,17 @@
                     </div>
                 `}
             `;
+
+            document.getElementById('qr-token-copy')?.addEventListener('click', async () => {
+                const token = document.getElementById('qr-token-text')?.textContent;
+                if (!token) return;
+                try {
+                    await navigator.clipboard.writeText(token);
+                    toast('Token copied!', 'success');
+                } catch {
+                    toast('Could not copy — try long-pressing the text', 'info');
+                }
+            });
 
             document.getElementById('toggle-serving')?.addEventListener('change', async (e) => {
                 await queueApi(`/queues/${qId}/notify-prefs`, { method: 'PUT', body: { notify_serving: e.target.checked } }).catch(() => {});

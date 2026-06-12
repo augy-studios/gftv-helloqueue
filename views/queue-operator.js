@@ -117,6 +117,10 @@ function buildOperatorHTML(queue, serving, waiting, missed, completed, can_opera
           </div>
           <div class="scanner-container">
             <video id="scanner-video" class="scanner-video" autoplay muted playsinline></video>
+            <canvas id="scanner-canvas" style="display:none;"></canvas>
+          </div>
+          <div style="margin-top:10px;">
+            <button class="btn btn-primary w-full" id="scan-btn">Scan QR</button>
           </div>
           <div id="scanner-result" class="scanner-result" style="display:none;"></div>
           <hr class="divider" />
@@ -377,10 +381,49 @@ function attachOperatorEvents(container, user, navigate, queueId, eventId, queue
         if (res) res.style.display = 'none';
     });
 
+    document.getElementById('scan-btn')?.addEventListener('click', async () => {
+        const btn = document.getElementById('scan-btn');
+        const video = document.getElementById('scanner-video');
+        if (!video?.srcObject) { toast('Camera not started', 'error'); return; }
+        btn.disabled = true;
+        btn.textContent = 'Scanning…';
+        try {
+            const jsQR = await loadJsQR();
+            const canvas = document.getElementById('scanner-canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height);
+            if (code?.data) {
+                await validateToken(code.data, queueId);
+            } else {
+                toast('No QR code detected — try again', 'info');
+            }
+        } catch (err) {
+            toast('Scan failed: ' + err.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Scan QR';
+        }
+    });
+
     document.getElementById('manual-validate-btn')?.addEventListener('click', async () => {
         const token = document.getElementById('manual-token').value.trim();
         if (!token) return;
         await validateToken(token, queueId);
+    });
+}
+
+function loadJsQR() {
+    if (window.jsQR) return Promise.resolve(window.jsQR);
+    return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';
+        s.onload = () => resolve(window.jsQR);
+        s.onerror = () => reject(new Error('Could not load QR decoder'));
+        document.head.appendChild(s);
     });
 }
 
