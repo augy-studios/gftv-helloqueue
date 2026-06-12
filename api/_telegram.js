@@ -1,5 +1,9 @@
 export async function sendTelegramMessage(chatId, text, options = {}) {
-    if (!chatId || !process.env.TELEGRAM_BOT_TOKEN) return;
+    if (!chatId) return;
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
+        console.error('[Telegram] TELEGRAM_BOT_TOKEN is not set — message not sent to', chatId);
+        return;
+    }
 
     try {
         const payload = {
