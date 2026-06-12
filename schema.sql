@@ -89,6 +89,7 @@ create table public.gftvqueue_entries (
   notify_next    boolean not null default true,
   joined_at      timestamptz not null default now(),
   called_at      timestamptz null,
+  entered_at     timestamptz null,
   completed_at   timestamptz null,
   constraint uq_queue_entry unique (queue_id, queue_number)
 ) tablespace pg_default;

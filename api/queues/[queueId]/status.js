@@ -16,7 +16,7 @@ export default async function handler(req, res) {
     // Find user's entry in this queue
     const { data: entry } = await supabase
         .from('gftvqueue_entries')
-        .select('id, queue_number, status, joined_at, called_at, notify_serving, notify_next')
+        .select('id, queue_number, status, joined_at, called_at, entered_at, notify_serving, notify_next')
         .eq('queue_id', queueId)
         .eq('telegram_user_id', telegram_user_id)
         .not('status', 'in', '("completed")')
@@ -103,6 +103,7 @@ export default async function handler(req, res) {
             queue_number: entry.queue_number,
             status: entry.status,
             position,
+            entered_at: entry.entered_at,
             notify_serving: entry.notify_serving,
             notify_next: entry.notify_next,
         },

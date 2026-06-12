@@ -225,12 +225,19 @@
             const isServing = entry?.status === 'serving';
             const isWaiting = entry?.status === 'waiting';
             const isMissed  = entry?.status === 'missed';
+            const hasEntered = isServing && !!entry?.entered_at;
 
             let qrBlock = '';
             if (isServing && data.qr_data_url) {
+                const qrLabel = hasEntered
+                    ? '✅ Entrance confirmed — show this QR code at the exit'
+                    : 'Show this QR code at the entrance';
+                const qrHint = hasEntered
+                    ? 'Keep this page open until you are ready to leave'
+                    : 'Single-use · Valid until scanned';
                 qrBlock = `
                     <div style="text-align:center;margin:20px 0;">
-                        <div class="text-sm text-muted" style="margin-bottom:12px;">Show this QR code at the entrance</div>
+                        <div class="text-sm${hasEntered ? '' : ' text-muted'}" style="margin-bottom:12px;${hasEntered ? 'color:var(--status-serving);font-weight:600;' : ''}">${qrLabel}</div>
                         <div class="qr-wrapper">
                             <img src="${data.qr_data_url}" alt="Entry QR Code" />
                         </div>
@@ -240,13 +247,15 @@
                             <span id="qr-token-text" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1;">${data.qr_token}</span>
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                         </div>` : ''}
-                        <div class="text-sm text-muted" style="margin-top:8px;">Single-use · Valid until scanned</div>
+                        <div class="text-sm text-muted" style="margin-top:8px;">${qrHint}</div>
                     </div>`;
             }
 
             let statusBanner = '';
             if (isServing) {
-                statusBanner = `<div style="background:var(--status-serving);color:#fff;padding:12px;border-radius:var(--radius-sm);text-align:center;margin-bottom:14px;font-size:1.05rem;">${Icons.star} It's your turn! Proceed to the entrance.</div>`;
+                statusBanner = hasEntered
+                    ? `<div style="background:var(--status-serving);color:#fff;padding:12px;border-radius:var(--radius-sm);text-align:center;margin-bottom:14px;font-size:1.05rem;">${Icons.check} You have entered! Show your QR code at the exit when you leave.</div>`
+                    : `<div style="background:var(--status-serving);color:#fff;padding:12px;border-radius:var(--radius-sm);text-align:center;margin-bottom:14px;font-size:1.05rem;">${Icons.star} It's your turn! Proceed to the entrance.</div>`;
             } else if (isMissed) {
                 statusBanner = `<div style="background:var(--status-missed);color:#fff;padding:12px;border-radius:var(--radius-sm);text-align:center;margin-bottom:14px;">${Icons.frown} You missed your turn. You can rejoin below.</div>`;
             }

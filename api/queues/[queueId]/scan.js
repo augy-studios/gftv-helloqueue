@@ -96,6 +96,11 @@ export default async function handler(req, res) {
     }
 
     if (scan_type === 'entrance') {
+        await supabase
+            .from('gftvqueue_entries')
+            .update({ entered_at: new Date().toISOString() })
+            .eq('id', entry.id);
+
         const tgMsg = `🚪 *Entrance confirmed!*\n\nNumber: *#${entry.queue_number}*\nName: ${entry.display_name}\n\nWelcome! Show this QR code again when you exit.`;
         await sendTelegramMessage(entry.telegram_user_id, tgMsg);
 
