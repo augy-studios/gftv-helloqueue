@@ -230,7 +230,7 @@
             let qrBlock = '';
             if (isServing && data.qr_data_url) {
                 const qrLabel = hasEntered
-                    ? '✅ Entrance confirmed — show this QR code at the exit'
+                    ? `${Icons.check} Entrance confirmed — show this QR code at the exit`
                     : 'Show this QR code at the entrance';
                 const qrHint = hasEntered
                     ? 'Keep this page open until you are ready to leave'
