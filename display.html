@@ -170,6 +170,7 @@
  
       function render(data) {
         const serving = data.serving || [];
+        const serving_entries = data.serving_entries || [];
         const waiting = data.waiting || [];
         const missed  = data.missed  || [];
         const newlyServed = serving.filter(n => !prevServing.includes(n));
@@ -196,9 +197,8 @@
             <div class="serving-block">
               <div class="now-serving-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg> Now Serving</div>
               <div id="serving-numbers" class="serving-numbers">
-                ${renderServingNumbers(serving)}
+                ${renderServingNumbers(serving, serving_entries)}
               </div>
-              ${serving.length === 0 ? '<div class="text-muted" style="font-size:0.88rem;margin-top:4px;">No one being served yet</div>' : ''}
             </div>
  
             <div>
@@ -263,20 +263,37 @@
         `;
       }
  
-      function renderServingNumbers(serving) {
-        if (!serving.length) return '';
-        return serving.map(n => `<div class="serving-number-big">${n}</div>`).join('');
+      function renderServingNumbers(serving, serving_entries) {
+        if (!serving.length) return '<div class="text-muted text-sm">No one being served yet</div>';
+        const entriesMap = Object.fromEntries((serving_entries || []).map(e => [e.queue_number, e]));
+        return serving.map(n => {
+          const entry = entriesMap[n];
+          const badge = entry?.entered_at
+            ? `<span style="font-size:0.55rem;background:rgba(255,255,255,0.25);border-radius:4px;padding:2px 5px;display:block;margin-top:4px;letter-spacing:0.05em;">IN</span>`
+            : `<span style="font-size:0.55rem;background:rgba(255,255,255,0.15);border-radius:4px;padding:2px 5px;display:block;margin-top:4px;letter-spacing:0.05em;">OUT</span>`;
+          return `<div class="serving-number-big" style="display:flex;flex-direction:column;align-items:center;">${n}${badge}</div>`;
+        }).join('');
       }
  
       function updateDisplay(data, serving, waiting, missed, newlyServed) {
+        const serving_entries = data.serving_entries || [];
         const servingEl = document.getElementById('serving-numbers');
         const waitingEl = document.getElementById('waiting-numbers');
         const missedEl  = document.getElementById('missed-numbers');
- 
+
         if (servingEl) {
-          servingEl.innerHTML = serving.length
-            ? serving.map(n => `<div class="serving-number-big ${newlyServed.includes(n) ? 'pop-in' : ''}">${n}</div>`).join('')
-            : '<div class="text-muted text-sm">No one being served yet</div>';
+          if (!serving.length) {
+            servingEl.innerHTML = '<div class="text-muted text-sm">No one being served yet</div>';
+          } else {
+            const entriesMap = Object.fromEntries(serving_entries.map(e => [e.queue_number, e]));
+            servingEl.innerHTML = serving.map(n => {
+              const entry = entriesMap[n];
+              const badge = entry?.entered_at
+                ? `<span style="font-size:0.55rem;background:rgba(255,255,255,0.25);border-radius:4px;padding:2px 5px;display:block;margin-top:4px;letter-spacing:0.05em;">IN</span>`
+                : `<span style="font-size:0.55rem;background:rgba(255,255,255,0.15);border-radius:4px;padding:2px 5px;display:block;margin-top:4px;letter-spacing:0.05em;">OUT</span>`;
+              return `<div class="serving-number-big ${newlyServed.includes(n) ? 'pop-in' : ''}" style="display:flex;flex-direction:column;align-items:center;">${n}${badge}</div>`;
+            }).join('');
+          }
         }
  
         if (waitingEl) {

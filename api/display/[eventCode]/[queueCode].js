@@ -49,14 +49,16 @@ export default async function handler(req, res) {
         data: entries
     } = await supabase
         .from('gftvqueue_entries')
-        .select('id, queue_number, status, display_name')
+        .select('id, queue_number, status, display_name, entered_at')
         .eq('queue_id', queue.id)
         .not('status', 'eq', 'completed')
         .order('queue_number', {
             ascending: true
         });
 
-    const serving = (entries || []).filter(e => e.status === 'serving').map(e => e.queue_number);
+    const servingEntries = (entries || []).filter(e => e.status === 'serving');
+    const serving = servingEntries.map(e => e.queue_number);
+    const serving_entries = servingEntries.map(e => ({ queue_number: e.queue_number, entered_at: e.entered_at }));
     const waiting = (entries || []).filter(e => e.status === 'waiting').map(e => e.queue_number);
     const missed = (entries || []).filter(e => e.status === 'missed').map(e => e.queue_number);
 
@@ -84,6 +86,7 @@ export default async function handler(req, res) {
             status: queue.status
         },
         serving,
+        serving_entries,
         waiting,
         missed,
         total_in_queue: waiting.length,
