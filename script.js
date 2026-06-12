@@ -177,9 +177,12 @@ export async function api(path, options = {}) {
     const data = await res.json().catch(() => ({}));
 
     if (res.status === 401) {
-        clearAuth();
-        window.location.href = '/login';
-        throw new Error('Session expired');
+        if (token) {
+            clearAuth();
+            window.location.href = '/login';
+            throw new Error('Session expired');
+        }
+        throw new Error(data.error || 'Unauthorized');
     }
 
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
