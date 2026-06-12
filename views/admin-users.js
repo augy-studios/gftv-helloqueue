@@ -72,7 +72,7 @@ async function loadUsers(currentUser, filter, search = '') {
         }
 
         wrap.innerHTML = `
-      <div class="glass" style="overflow-x:auto;">
+      <div class="glass" style="overflow-x:auto;max-width:100%;">
         <table style="width:100%;min-width:640px;border-collapse:collapse;">
           <thead>
             <tr style="border-bottom:1px solid var(--border);font-size:0.8rem;color:var(--text-muted);">
