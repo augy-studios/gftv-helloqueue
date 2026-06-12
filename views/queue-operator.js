@@ -119,7 +119,11 @@ function buildOperatorHTML(queue, serving, waiting, missed, completed, can_opera
             <video id="scanner-video" class="scanner-video" autoplay muted playsinline></video>
             <canvas id="scanner-canvas" style="display:none;"></canvas>
           </div>
-          <div style="margin-top:10px;">
+          <div style="display:flex;gap:8px;margin-top:10px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px;">
+            <button class="btn btn-primary btn-sm" id="scan-type-entrance" style="flex:1;">🚪 Entrance</button>
+            <button class="btn btn-ghost btn-sm" id="scan-type-exit" style="flex:1;">🏁 Exit</button>
+          </div>
+          <div style="margin-top:8px;">
             <button class="btn btn-primary w-full" id="scan-btn">Scan QR</button>
           </div>
           <div id="scanner-result" class="scanner-result" style="display:none;"></div>
@@ -373,6 +377,22 @@ function attachOperatorEvents(container, user, navigate, queueId, eventId, queue
         }
     });
 
+    let scanType = 'entrance';
+    document.getElementById('scan-type-entrance')?.addEventListener('click', () => {
+        scanType = 'entrance';
+        document.getElementById('scan-type-entrance').className = 'btn btn-primary btn-sm';
+        document.getElementById('scan-type-exit').className = 'btn btn-ghost btn-sm';
+        document.getElementById('scan-type-entrance').style.flex = '1';
+        document.getElementById('scan-type-exit').style.flex = '1';
+    });
+    document.getElementById('scan-type-exit')?.addEventListener('click', () => {
+        scanType = 'exit';
+        document.getElementById('scan-type-exit').className = 'btn btn-primary btn-sm';
+        document.getElementById('scan-type-entrance').className = 'btn btn-ghost btn-sm';
+        document.getElementById('scan-type-exit').style.flex = '1';
+        document.getElementById('scan-type-entrance').style.flex = '1';
+    });
+
     let stream = null;
     document.getElementById('open-scanner-btn')?.addEventListener('click', async () => {
         document.getElementById('scanner-modal').classList.add('open');
@@ -414,7 +434,7 @@ function attachOperatorEvents(container, user, navigate, queueId, eventId, queue
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const code = jsQR(imageData.data, imageData.width, imageData.height);
             if (code?.data) {
-                await validateToken(code.data, queueId);
+                await validateToken(code.data, queueId, scanType);
             } else {
                 toast('No QR code detected — try again', 'info');
             }
@@ -429,7 +449,7 @@ function attachOperatorEvents(container, user, navigate, queueId, eventId, queue
     document.getElementById('manual-validate-btn')?.addEventListener('click', async () => {
         const token = document.getElementById('manual-token').value.trim();
         if (!token) return;
-        await validateToken(token, queueId);
+        await validateToken(token, queueId, scanType);
     });
 }
 
@@ -444,17 +464,15 @@ function loadJsQR() {
     });
 }
 
-async function validateToken(token, queueId) {
+async function validateToken(token, queueId, scan_type = 'entrance') {
     const resultEl = document.getElementById('scanner-result');
     try {
         const data = await api(`/queues/${queueId}/scan`, {
             method: 'POST',
-            body: {
-                token
-            }
+            body: { token, scan_type }
         });
         resultEl.className = 'scanner-result valid';
-        resultEl.innerHTML = `${Icons.check} Validated - marked served.<br><strong>#${data.queue_number} · ${data.name}</strong>`;
+        resultEl.innerHTML = `${Icons.check} ${data.message}<br><strong>#${data.queue_number} · ${data.name}</strong>`;
         resultEl.style.display = 'block';
         document.getElementById('manual-token').value = '';
     } catch (err) {

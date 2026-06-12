@@ -23,7 +23,8 @@ export default async function handler(req, res) {
         queueId
     } = req.query;
     const {
-        token
+        token,
+        scan_type = 'exit',
     } = req.body || {};
     if (!token) return res.status(400).json({
         error: 'Token is required'
@@ -94,30 +95,35 @@ export default async function handler(req, res) {
         });
     }
 
-    // Mark token used
+    if (scan_type === 'entrance') {
+        const tgMsg = `🚪 *Entrance confirmed!*\n\nNumber: *#${entry.queue_number}*\nName: ${entry.display_name}\n\nWelcome! Show this QR code again when you exit.`;
+        await sendTelegramMessage(entry.telegram_user_id, tgMsg);
+
+        return res.status(200).json({
+            valid: true,
+            message: 'Entrance confirmed.',
+            queue_number: entry.queue_number,
+            name: entry.display_name,
+        });
+    }
+
+    // Exit scan — mark token used and complete the entry
     await supabase
         .from('gftvqueue_entry_tokens')
-        .update({
-            used_at: new Date().toISOString()
-        })
+        .update({ used_at: new Date().toISOString() })
         .eq('id', tokenRow.id);
 
-    // Mark entry complete
     await supabase
         .from('gftvqueue_entries')
-        .update({
-            status: 'completed',
-            completed_at: new Date().toISOString()
-        })
+        .update({ status: 'completed', completed_at: new Date().toISOString() })
         .eq('id', entry.id);
 
-    // Telegram notification
-    const tgMsg = `✅ *Entry confirmed!*\n\nNumber: *#${entry.queue_number}*\nName: ${entry.display_name}\n\nEnjoy your time at the Dealers' Den!`;
+    const tgMsg = `✅ *Exit confirmed!*\n\nNumber: *#${entry.queue_number}*\nName: ${entry.display_name}\n\nThank you for visiting the Dealers' Den!`;
     await sendTelegramMessage(entry.telegram_user_id, tgMsg);
 
     return res.status(200).json({
         valid: true,
-        message: 'Validated - marked served.',
+        message: 'Exit confirmed - marked complete.',
         queue_number: entry.queue_number,
         name: entry.display_name,
     });

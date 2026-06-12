@@ -226,7 +226,7 @@
         const data = await api('/auth/login', {
           method: 'POST',
           body: {
-            username: document.getElementById('username').value.trim(),
+            username: document.getElementById('username').value.trim().toLowerCase(),
             password: document.getElementById('password').value,
             device_token: localStorage.getItem('hq_device_token') || undefined,
           },
