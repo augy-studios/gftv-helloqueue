@@ -38,7 +38,7 @@ export default async function handler(req, res) {
             error
         } = await supabase
             .from('gftvqueue_queue_permissions')
-            .select('id, user_id, is_queue_admin, granted_at, gftvhello_users(id, username, display_name)')
+            .select('id, user_id, is_queue_admin, granted_at, gftvhello_users!user_id(id, username, display_name)')
             .eq('queue_id', queueId);
 
         if (error) return res.status(500).json({
