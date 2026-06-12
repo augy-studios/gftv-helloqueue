@@ -136,7 +136,12 @@
                 },
                 body: opts.body ? JSON.stringify(opts.body) : undefined,
             });
-            const data = await res.json();
+            let data;
+            try {
+                data = await res.json();
+            } catch {
+                throw new Error(`Server error (${res.status})`);
+            }
             if (!res.ok) {
                 // Session invalidated from another browser - clear and re-prompt
                 if (res.status === 401) clearAttendeeToken();
@@ -148,6 +153,7 @@
         // Init
         let pollTimer = null;
         let queueId = null;
+        let hasRendered = false;
 
         async function initAttendee(eventCode, queueCode) {
             let displayData = null;
@@ -193,13 +199,17 @@
 
             try {
                 const data = await queueApi(`/queues/${queueId}/status`);
+                hasRendered = true;
                 renderStatusUI(data, displayData, queueId);
             } catch (err) {
                 if (err.message === 'Telegram account not linked') {
                     renderConnectUI(displayData);
                     return;
                 }
-                if (!silent) {
+                if (hasRendered) {
+                    // Don't wipe the UI on a transient server error — just notify
+                    toast(err.message, 'error');
+                } else if (!silent) {
                     content.innerHTML = `<div class="glass queue-card" style="text-align:center;padding:32px;">${err.message}</div>`;
                 }
             }
