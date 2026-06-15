@@ -46,9 +46,14 @@ export default async function handler(req, res) {
             error
         } = await supabase
             .from('gftvqueue_queues')
-            .select('*')
+            .select('*, gftvqueue_events(access_code)')
             .eq('id', queueId)
             .single();
+
+        if (queue && queue.gftvqueue_events) {
+            queue.event_access_code = queue.gftvqueue_events.access_code;
+            delete queue.gftvqueue_events;
+        }
 
         if (error || !queue) return res.status(404).json({
             error: 'Queue not found'
