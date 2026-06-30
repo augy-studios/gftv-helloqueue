@@ -7,6 +7,7 @@ import {
     handleCors,
     requireAuth
 } from '../_auth.js';
+import { verifySignedRequest } from '../../lib/gftv-request-signing-server.js';
 
 function randomOtp() {
     return String(Math.floor(100000 + Math.random() * 900000));
@@ -14,6 +15,9 @@ function randomOtp() {
 
 export default async function handler(req, res) {
     if (handleCors(req, res)) return;
+
+    const { valid, reason } = await verifySignedRequest(req, supabase);
+    if (!valid) return res.status(401).json({ error: `Unauthorized: ${reason}` });
 
     const user = await requireAuth(req, res);
     if (!user) return;

@@ -1,12 +1,18 @@
 import { authenticator } from 'otplib';
 import bcrypt from 'bcryptjs';
+import crypto from 'node:crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../_supabase.js';
 import { handleCors } from '../_auth.js';
+import { verifySignedRequest } from '../../lib/gftv-request-signing-server.js';
 
 export default async function handler(req, res) {
     if (handleCors(req, res)) return;
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+    // Signed with the guest key the client obtained before starting the login flow
+    const { valid, reason } = await verifySignedRequest(req, supabase);
+    if (!valid) return res.status(401).json({ error: `Unauthorized: ${reason}` });
 
     const { totp_token, code, trust_device } = req.body || {};
     if (!totp_token || !code) return res.status(400).json({ error: 'Missing token or code' });
@@ -71,6 +77,16 @@ export default async function handler(req, res) {
         expires_at: expiresAt,
     });
 
+    // Issue signing key for this session; key_id = session token for easy lookup via X-Key-ID
+    const signing_key = crypto.randomBytes(32).toString('hex');
+    await supabase.from('gftvhello_signing_keys').insert({
+        session_token: token,
+        signing_key,
+        is_guest: false,
+        app_id: 'helloqueue',
+        expires_at: expiresAt,
+    });
+
     let device_token = null;
     if (trust_device) {
         device_token = uuidv4();
@@ -85,6 +101,8 @@ export default async function handler(req, res) {
     return res.status(200).json({
         token,
         expires_at: expiresAt,
+        signing_key,
+        key_id: token,
         device_token,
         user: {
             id: user.id,

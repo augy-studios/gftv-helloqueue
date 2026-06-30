@@ -1,16 +1,20 @@
-// GET → public polling endpoint for the display screen (no auth required)
+// GET → public polling endpoint for the display screen
 import {
     supabase
 } from '../../_supabase.js';
 import {
     handleCors
 } from '../../_auth.js';
+import { verifySignedRequest } from '../../../lib/gftv-request-signing-server.js';
 
 export default async function handler(req, res) {
     if (handleCors(req, res)) return;
     if (req.method !== 'GET') return res.status(405).json({
         error: 'Method not allowed'
     });
+
+    const { valid, reason } = await verifySignedRequest(req, supabase);
+    if (!valid) return res.status(401).json({ error: `Unauthorized: ${reason}` });
 
     const {
         eventCode,

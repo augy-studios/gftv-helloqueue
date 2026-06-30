@@ -9,6 +9,7 @@ import {
 import {
     sendTelegramMessage
 } from '../../_telegram.js';
+import { verifySignedRequest } from '../../../lib/gftv-request-signing-server.js';
 
 async function canOperate(userId, queueId, isAdmin) {
     if (isAdmin) return true;
@@ -28,6 +29,9 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({
         error: 'Method not allowed'
     });
+
+    const { valid, reason } = await verifySignedRequest(req, supabase);
+    if (!valid) return res.status(401).json({ error: `Unauthorized: ${reason}` });
 
     const user = await requireAuth(req, res);
     if (!user) return;

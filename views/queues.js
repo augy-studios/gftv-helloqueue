@@ -121,7 +121,7 @@ async function loadQueueCounts(queueId, eventCode, queueCode) {
     const el = document.getElementById(`counts-${queueId}`);
     if (!el) return;
     try {
-        const data = await fetch(`/api/display/${eventCode}/${queueCode}`).then(r => r.json());
+        const data = await api(`/display/${eventCode}/${queueCode}`);
         el.innerHTML = `
       <span style="color:var(--status-serving);"><svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><circle cx="5" cy="5" r="5"/></svg> Serving: ${data.serving?.length || 0}</span>
       <span style="color:var(--status-waiting);">${Icons.hourglass} Waiting: ${data.total_in_queue || 0}</span>

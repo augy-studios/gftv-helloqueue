@@ -1,4 +1,6 @@
+// POST /api/auth/login — EXEMPT from verifySignedRequest (this issues the signing key)
 import bcrypt from 'bcryptjs';
+import crypto from 'node:crypto';
 import {
     v4 as uuidv4
 } from 'uuid';
@@ -8,6 +10,19 @@ import {
 import {
     handleCors
 } from '../_auth.js';
+
+async function createSigningKey(sessionToken, expiresAt) {
+    const signing_key = crypto.randomBytes(32).toString('hex');
+    await supabase.from('gftvhello_signing_keys').insert({
+        session_token: sessionToken,
+        signing_key,
+        is_guest: false,
+        app_id: 'helloqueue',
+        expires_at: expiresAt,
+    });
+    // key_id == session_token so the client can look it up with X-Key-ID
+    return { signing_key, key_id: sessionToken };
+}
 
 export default async function handler(req, res) {
     if (handleCors(req, res)) return;
@@ -76,13 +91,16 @@ export default async function handler(req, res) {
                 .single();
 
             if (trusted && new Date(trusted.expires_at) > new Date()) {
-                // Trusted device - skip TOTP, issue session directly
+                // Trusted device — skip TOTP, issue session directly
                 const token = uuidv4();
                 const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
                 await supabase.from('gftvhello_sessions').insert({ user_id: user.id, token, expires_at: expiresAt });
+                const { signing_key, key_id } = await createSigningKey(token, expiresAt);
                 return res.status(200).json({
                     token,
                     expires_at: expiresAt,
+                    signing_key,
+                    key_id,
                     user: { id: user.id, username: user.username, display_name: user.display_name, is_admin: user.is_admin, is_editor: user.is_editor },
                 });
             }
@@ -99,6 +117,7 @@ export default async function handler(req, res) {
             expires_at: expiresAt,
         });
 
+        // No signing key yet — it will be issued by /auth/totp-verify after TOTP succeeds
         return res.status(200).json({
             requires_totp: true,
             totp_token: challengeToken
@@ -115,9 +134,13 @@ export default async function handler(req, res) {
         expires_at: expiresAt,
     });
 
+    const { signing_key, key_id } = await createSigningKey(token, expiresAt);
+
     return res.status(200).json({
         token,
         expires_at: expiresAt,
+        signing_key,
+        key_id,
         user: {
             id: user.id,
             username: user.username,

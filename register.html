@@ -90,8 +90,12 @@
 
     <script type="module">
         import { initTheme, buildTopbar, api } from '/script.js';
+        import { initGuestKey } from '/lib/gftv-request-signing.js';
     initTheme();
     buildTopbar(document.getElementById('topbar-root'));
+
+    // Guest key signs the /api/auth/register call (register.js has verifySignedRequest)
+    try { await initGuestKey('helloqueue-register'); } catch (e) { console.warn('Guest key init failed:', e.message); }
  
     const form = document.getElementById('register-form');
     const errEl = document.getElementById('reg-error');

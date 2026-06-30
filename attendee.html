@@ -94,9 +94,13 @@
 
     <script type="module">
         import { initTheme, buildTopbar, getToken, api, toast, Icons } from '/script.js';
+        import { initGuestKey, signedFetch } from '/lib/gftv-request-signing.js';
 
         initTheme();
         buildTopbar(document.getElementById('topbar-root'));
+
+        // Type B page — always initialise a guest signing key before any /api/ calls
+        try { await initGuestKey('helloqueue-attendee'); } catch (e) { console.warn('Guest key init failed:', e.message); }
 
         const parts = window.location.pathname.split('/').filter(Boolean);
         const eventCode = parts[1];
@@ -128,7 +132,7 @@
 
         async function queueApi(path, opts = {}) {
             const token = getAttendeeToken();
-            const res = await fetch('/api' + path, {
+            const res = await signedFetch('/api' + path, {
                 method: opts.method || 'GET',
                 headers: {
                     'Content-Type': 'application/json',
@@ -158,7 +162,7 @@
         async function initAttendee(eventCode, queueCode) {
             let displayData = null;
             try {
-                const res = await fetch(`/api/display/${eventCode}/${queueCode}`);
+                const res = await signedFetch(`/api/display/${eventCode}/${queueCode}`);
                 if (!res.ok) throw new Error();
                 displayData = await res.json();
                 queueId = displayData.queue?.id || null;
@@ -180,7 +184,7 @@
             if (!content) return;
 
             try {
-                const res = await fetch(`/api/display/${eventCode}/${queueCode}`);
+                const res = await signedFetch(`/api/display/${eventCode}/${queueCode}`);
                 if (res.ok) {
                     displayData = await res.json();
                     if (displayData.queue?.id) queueId = displayData.queue.id;
@@ -446,7 +450,7 @@
             btn.textContent = 'Generating…';
 
             try {
-                const res = await fetch('/api/auth/attendee-login', { method: 'POST' });
+                const res = await signedFetch('/api/auth/attendee-login', { method: 'POST' });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Failed to generate code');
 
@@ -471,7 +475,7 @@
                 // poll until confirmed
                 pollCodeTimer = setInterval(async () => {
                     try {
-                        const pollRes = await fetch(`/api/auth/attendee-login?code=${code}`);
+                        const pollRes = await signedFetch(`/api/auth/attendee-login?code=${code}`);
                         const pollData = await pollRes.json();
                         if (pollRes.status === 200 && pollData.token) {
                             clearInterval(pollCodeTimer);
