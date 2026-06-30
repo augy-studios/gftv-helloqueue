@@ -1,4 +1,4 @@
-const CACHE = "helloqueue-v37";
+const CACHE = "helloqueue-v38";
 
 const ASSETS = [
   "/",
@@ -8,9 +8,19 @@ const ASSETS = [
   "/dashboard.html",
   "/attendee.html",
   "/display.html",
+  "/404.html",
+  "/404.css",
   "/style.css",
   "/script.js",
+  "/lib/gftv-request-signing.js",
+  "/views/queues.js",
+  "/views/events.js",
+  "/views/queue-operator.js",
+  "/views/profile.js",
+  "/views/admin-users.js",
   "/GHQ-main.png",
+  "/GHQ-192.png",
+  "/GHQ-512.png",
   "/favicon.ico",
   "/manifest.json"
 ];
