@@ -29,9 +29,20 @@
     <meta property="og:site_name" content="GFTV TIDSC" />
     <meta property="og:description" content="GFTV Virtual Queue Management System" />
 
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Jua">
+    <meta name="theme-color" content="#f4f4f4" />
+    <script>
+        // Pre-paint: land both theme axes before first paint, so every colour
+        // block can select on both without an attribute-missing fallback.
+        (function () {
+            var k = "gftv-helloqueue";
+            var m = localStorage.getItem(k + ".mode") || "light";
+            var c = localStorage.getItem(k + ".colorTheme") || "classic";
+            document.documentElement.setAttribute("data-mode", m);
+            document.documentElement.setAttribute("data-color-theme", c);
+        })();
+    </script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
     <link rel="stylesheet" href="/style.css">
-    <meta name="theme-color" content="#ccffcc" />
 
     <!-- Embed Image -->
     <link rel="apple-touch-icon" href="/GHQ-main.png">
@@ -50,7 +61,7 @@
     <div id="topbar-root"></div>
 
     <div class="auth-page">
-        <div class="glass auth-card">
+        <div class="glass-card auth-card">
             <div class="auth-title">Welcome back</div>
             <div class="auth-sub">Sign in to HelloQueue</div>
 

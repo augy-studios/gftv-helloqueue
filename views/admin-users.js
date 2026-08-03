@@ -12,7 +12,7 @@ export async function renderAdminUsersView(container, {
     <div class="page-title">
       <span>User Management</span>
       <div style="display:flex;gap:8px;align-items:center;">
-        <input id="user-search" placeholder="Search username…" style="padding:7px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);font-family:Jua,sans-serif;font-size:0.88rem;color:var(--text);width:180px;" />
+        <input id="user-search" placeholder="Search username…" style="padding:7px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);font-family:var(--font);font-size:0.88rem;color:var(--text);width:180px;" />
         <button class="btn btn-ghost btn-sm" id="search-btn">${Icons.refresh} Search</button>
       </div>
     </div>
@@ -72,7 +72,7 @@ async function loadUsers(currentUser, filter, search = '') {
         }
 
         wrap.innerHTML = `
-      <div class="glass" style="overflow-x:auto;max-width:100%;">
+      <div class="glass-card" style="overflow-x:auto;max-width:100%;">
         <table style="width:100%;min-width:640px;border-collapse:collapse;">
           <thead>
             <tr style="border-bottom:1px solid var(--border);font-size:0.8rem;color:var(--text-muted);">

@@ -10,7 +10,7 @@ export async function renderProfileView(container, {
     container.innerHTML = `
     <div class="page-title">Profile</div>
     <div style="max-width:520px;">
-      <div class="glass" style="padding:22px;margin-bottom:16px;">
+      <div class="glass-card" style="padding:22px;margin-bottom:16px;">
         <div class="section-label">Account</div>
         <div class="info-row"><span class="info-row-label">Display Name</span><span>${user.display_name}</span></div>
         <div class="info-row"><span class="info-row-label">Username</span><span>@${user.username}</span></div>
@@ -21,7 +21,7 @@ export async function renderProfileView(container, {
         </div>
       </div>
 
-      <div class="glass" style="padding:22px;" id="telegram-section">
+      <div class="glass-card" style="padding:22px;" id="telegram-section">
         <div class="section-label">Telegram Integration</div>
         <div id="tg-content"><div class="loader"></div></div>
       </div>

@@ -28,9 +28,20 @@
     <meta property="og:site_name" content="GFTV TIDSC" />
     <meta property="og:description" content="GFTV Virtual Queue Management System" />
 
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Jua">
+    <meta name="theme-color" content="#f4f4f4" />
+    <script>
+        // Pre-paint: land both theme axes before first paint, so every colour
+        // block can select on both without an attribute-missing fallback.
+        (function () {
+            var k = "gftv-helloqueue";
+            var m = localStorage.getItem(k + ".mode") || "light";
+            var c = localStorage.getItem(k + ".colorTheme") || "classic";
+            document.documentElement.setAttribute("data-mode", m);
+            document.documentElement.setAttribute("data-color-theme", c);
+        })();
+    </script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
     <link rel="stylesheet" href="/style.css">
-    <meta name="theme-color" content="#ccffcc" />
 
     <link rel="apple-touch-icon" href="/GHQ-main.png">
     <link rel="icon" href="/favicon.ico">
@@ -72,8 +83,8 @@
             height: 100px;
             font-size: 3rem;
             border-radius: var(--radius);
-            background: #e41f1f;
-            color: #fff;
+            background: var(--status-error);
+            color: var(--status-on);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -130,7 +141,7 @@
             import { initGuestKey, signedFetch } from '/lib/gftv-request-signing.js';
     initTheme();
 
-    // Type B page — initialise guest signing key before polling /api/display
+    // Type B page: initialise guest signing key before polling /api/display
     try { await initGuestKey('helloqueue-display'); } catch (e) { console.warn('Guest key init failed:', e.message); }
  
     const parts = window.location.pathname.split('/').filter(Boolean);
@@ -274,9 +285,9 @@
           const entry = entriesMap[n];
           const isIn = !!entry?.entered_at;
           const badge = isIn
-            ? `<span style="font-size:0.55rem;background:rgba(255,255,255,0.25);border-radius:4px;padding:2px 5px;display:block;margin-top:4px;letter-spacing:0.05em;">IN</span>`
-            : `<span style="font-size:0.55rem;background:rgba(255,255,255,0.15);border-radius:4px;padding:2px 5px;display:block;margin-top:4px;letter-spacing:0.05em;">OUT</span>`;
-          const bgStyle = isIn ? 'background:#22c55e;' : '';
+            ? `<span style="font-size:0.55rem;background:var(--chip-on-fill);border-radius:4px;padding:2px 5px;display:block;margin-top:4px;letter-spacing:0.05em;">IN</span>`
+            : `<span style="font-size:0.55rem;background:var(--chip-on-fill-weak);border-radius:4px;padding:2px 5px;display:block;margin-top:4px;letter-spacing:0.05em;">OUT</span>`;
+          const bgStyle = isIn ? 'background:var(--status-serving);' : '';
           return `<div class="serving-number-big" style="display:flex;flex-direction:column;align-items:center;${bgStyle}">${n}${badge}</div>`;
         }).join('');
       }
@@ -296,9 +307,9 @@
               const entry = entriesMap[n];
               const isIn = !!entry?.entered_at;
               const badge = isIn
-                ? `<span style="font-size:0.55rem;background:rgba(255,255,255,0.25);border-radius:4px;padding:2px 5px;display:block;margin-top:4px;letter-spacing:0.05em;">IN</span>`
-                : `<span style="font-size:0.55rem;background:rgba(255,255,255,0.15);border-radius:4px;padding:2px 5px;display:block;margin-top:4px;letter-spacing:0.05em;">OUT</span>`;
-              const bgStyle = isIn ? 'background:#22c55e;' : '';
+                ? `<span style="font-size:0.55rem;background:var(--chip-on-fill);border-radius:4px;padding:2px 5px;display:block;margin-top:4px;letter-spacing:0.05em;">IN</span>`
+                : `<span style="font-size:0.55rem;background:var(--chip-on-fill-weak);border-radius:4px;padding:2px 5px;display:block;margin-top:4px;letter-spacing:0.05em;">OUT</span>`;
+              const bgStyle = isIn ? 'background:var(--status-serving);' : '';
               return `<div class="serving-number-big ${newlyServed.includes(n) ? 'pop-in' : ''}" style="display:flex;flex-direction:column;align-items:center;${bgStyle}">${n}${badge}</div>`;
             }).join('');
           }

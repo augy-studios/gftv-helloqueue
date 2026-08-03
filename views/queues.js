@@ -62,7 +62,7 @@ async function loadMyQueues(container, user, navigate) {
         }
 
         listEl.innerHTML = allQueues.map(q => `
-      <div class="glass event-card">
+      <div class="glass-card event-card">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
           <span class="status-pill ${q.status}">${q.status}</span>
           ${q.is_queue_admin ? `<span class="text-sm text-muted">Queue Admin</span>` : `<span class="text-sm text-muted">Operator</span>`}

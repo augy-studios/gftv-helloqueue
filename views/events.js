@@ -84,7 +84,7 @@ async function loadEvents(container, user, navigate) {
         }
 
         grid.innerHTML = events.map(ev => `
-      <div class="glass event-card">
+      <div class="glass-card event-card">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
           <span class="status-pill ${ev.status}">${ev.status}</span>
           ${user.is_admin ? `
@@ -173,13 +173,13 @@ async function openEventDetail(eventId, container, user, navigate) {
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
-        <div class="glass" style="padding:16px;">
+        <div class="glass-card" style="padding:16px;">
           <div class="section-label">Event Info</div>
           ${event.venue ? `<div class="text-sm">${Icons.calendar} ${event.venue}</div>` : ''}
           ${event.event_date ? `<div class="text-sm mt-1">${new Date(event.event_date).toLocaleDateString()}</div>` : ''}
           <div class="text-sm mt-1 text-muted">Code: <strong>${event.access_code}</strong></div>
         </div>
-        <div class="glass" style="padding:16px;">
+        <div class="glass-card" style="padding:16px;">
           <div class="section-label">Editors</div>
           <div id="editors-list">
             ${editors.map(e => `
@@ -201,7 +201,7 @@ async function openEventDetail(eventId, container, user, navigate) {
       <div class="section-label">Queues</div>
       <div id="queues-list" class="card-grid">
         ${queues.length ? queues.map(q => `
-          <div class="glass event-card">
+          <div class="glass-card event-card">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
               <span class="status-pill ${q.status}">${q.status}</span>
               <span class="text-sm text-muted">Max: ${q.max_serving}</span>

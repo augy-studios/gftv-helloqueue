@@ -4,6 +4,7 @@ export { clearSigningKey };
 // Icons
 export const Icons = {
     sun: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`,
+    moon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/></svg>`,
     palette: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>`,
     coffee: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>`,
     logout: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
@@ -37,32 +38,102 @@ export const Icons = {
     meh: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="8" y1="15" x2="16" y2="15"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>`,
 };
 
-// Theme
-const THEMES = {
-    light: {
-        label: 'Light',
-        bg: '#ffffff',
-        attr: 'light'
-    },
-    hello: {
-        label: 'HelloTheme',
-        bg: '#fedc00',
-        attr: 'hello'
-    },
+// Theme: two independent axes, colour theme and light/dark mode.
+// Default is always classic + light, regardless of OS preference.
+
+const APP_KEY = 'gftv-helloqueue';
+
+export const COLOR_THEMES = [
+    { id: 'classic', label: 'Classic', hex: '#f4f4f4' },
+    { id: 'hello', label: 'HelloTheme', hex: '#fedc00' },
+];
+
+// Page background per combination, for meta[name=theme-color].
+const THEME_COLOR = {
+    'classic:light': '#f4f4f4',
+    'classic:dark': '#101114',
+    'hello:light': '#fedc00',
+    'hello:dark': '#14120a',
 };
 
+const KEY_COLOR = `${APP_KEY}.colorTheme`;
+const KEY_MODE = `${APP_KEY}.mode`;
+const LEGACY_KEY = 'hq_theme';
+
+// Old single key mapped onto the two axes.
+const LEGACY_MAP = {
+    light: { colorTheme: 'classic', mode: 'light' },
+    hello: { colorTheme: 'hello', mode: 'light' },
+};
+
+function migrateLegacy() {
+    if (localStorage.getItem(KEY_COLOR)) return;
+    const old = localStorage.getItem(LEGACY_KEY);
+    const mapped = LEGACY_MAP[old] || { colorTheme: 'classic', mode: 'light' };
+    localStorage.setItem(KEY_COLOR, mapped.colorTheme);
+    localStorage.setItem(KEY_MODE, mapped.mode);
+    localStorage.removeItem(LEGACY_KEY);
+}
+
+export function getStoredColorTheme() {
+    const v = localStorage.getItem(KEY_COLOR);
+    return COLOR_THEMES.some((t) => t.id === v) ? v : 'classic';
+}
+
+export function getStoredMode() {
+    return localStorage.getItem(KEY_MODE) === 'dark' ? 'dark' : 'light';
+}
+
+function syncMeta() {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (!meta) return;
+    meta.setAttribute('content', THEME_COLOR[`${getStoredColorTheme()}:${getStoredMode()}`]);
+}
+
+// The topbar button shows the mode you are in, not the one you would switch to.
+function syncThemeBtnIcon() {
+    const btn = document.getElementById('theme-btn');
+    if (btn) btn.innerHTML = getStoredMode() === 'dark' ? Icons.moon : Icons.sun;
+}
+
+export function applyColorTheme(id) {
+    const theme = COLOR_THEMES.find((t) => t.id === id) || COLOR_THEMES[0];
+    document.documentElement.setAttribute('data-color-theme', theme.id);
+    localStorage.setItem(KEY_COLOR, theme.id);
+    syncMeta();
+    return theme;
+}
+
+export function applyMode(mode) {
+    const resolved = mode === 'dark' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-mode', resolved);
+    localStorage.setItem(KEY_MODE, resolved);
+    syncMeta();
+    syncThemeBtnIcon();
+    return resolved;
+}
+
 export function initTheme() {
-    const saved = localStorage.getItem('hq_theme') || 'light';
-    applyTheme(saved);
+    migrateLegacy();
+    applyColorTheme(getStoredColorTheme());
+    applyMode(getStoredMode());
 }
 
-export function applyTheme(key) {
-    document.documentElement.setAttribute('data-theme', THEMES[key]?.attr || 'light');
-    localStorage.setItem('hq_theme', key);
-}
-
-export function getCurrentTheme() {
-    return localStorage.getItem('hq_theme') || 'light';
+// Forces classic + light for the duration of fn, then restores both axes.
+// Writes the attributes directly and never touches localStorage, so an
+// export cannot overwrite the user's choice if it throws partway through.
+export function withLightMode(fn) {
+    const root = document.documentElement;
+    const mode = getStoredMode();
+    const theme = getStoredColorTheme();
+    root.setAttribute('data-color-theme', 'classic');
+    root.setAttribute('data-mode', 'light');
+    return Promise.resolve()
+        .then(fn)
+        .finally(() => {
+            root.setAttribute('data-color-theme', theme);
+            root.setAttribute('data-mode', mode);
+        });
 }
 
 export function buildThemeModal() {
@@ -70,15 +141,21 @@ export function buildThemeModal() {
     overlay.className = 'modal-overlay';
     overlay.id = 'theme-modal';
     overlay.innerHTML = `
-    <div class="modal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="theme-modal-title">
       <div class="modal-header">
-        <span class="modal-title">Choose Theme</span>
-        <button class="modal-close" id="theme-modal-close">${Icons.x}</button>
+        <span class="modal-title" id="theme-modal-title">Choose Theme</span>
+        <button class="modal-close" id="theme-modal-close" aria-label="Close">${Icons.x}</button>
       </div>
-      <div class="theme-grid">
-        ${Object.entries(THEMES).map(([key, t]) => `
-          <button class="theme-option ${getCurrentTheme() === key ? 'active' : ''}" data-theme="${key}">
-            <div class="theme-swatch" style="background:${t.bg};"></div>
+      <div class="modal-section-label">Mode</div>
+      <div class="mode-toggle" id="mode-toggle">
+        <button class="mode-btn" type="button" data-mode="light">${Icons.sun} Light</button>
+        <button class="mode-btn" type="button" data-mode="dark">${Icons.moon} Dark</button>
+      </div>
+      <div class="modal-section-label">Colour theme</div>
+      <div class="theme-grid" id="swatch-grid">
+        ${COLOR_THEMES.map((t) => `
+          <button class="theme-option" type="button" data-color-theme="${t.id}">
+            <div class="theme-swatch" style="background:${t.hex};"></div>
             <div class="theme-name">${t.label}</div>
           </button>
         `).join('')}
@@ -88,24 +165,52 @@ export function buildThemeModal() {
 
     document.body.appendChild(overlay);
 
-    overlay.addEventListener('click', (e) => {
+    // Delegation on each grid container.
+    overlay.querySelector('#swatch-grid').addEventListener('click', (e) => {
         const opt = e.target.closest('.theme-option');
-        if (opt) {
-            overlay.querySelectorAll('.theme-option').forEach(o => o.classList.remove('active'));
-            opt.classList.add('active');
-            applyTheme(opt.dataset.theme);
-        }
-        if (e.target === overlay || e.target.id === 'theme-modal-close') {
+        if (!opt) return;
+        applyColorTheme(opt.dataset.colorTheme);
+        syncThemeModal();
+    });
+
+    overlay.querySelector('#mode-toggle').addEventListener('click', (e) => {
+        const btn = e.target.closest('.mode-btn');
+        if (!btn) return;
+        applyMode(btn.dataset.mode);
+        syncThemeModal();
+    });
+
+    // Closing is a separate action: the close button or the backdrop.
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay || e.target.closest('#theme-modal-close')) {
             closeThemeModal();
         }
     });
 
+    syncThemeModal();
     return overlay;
+}
+
+// Reflects the live state back into the modal, which stays open.
+function syncThemeModal() {
+    const overlay = document.getElementById('theme-modal');
+    if (!overlay) return;
+    const theme = getStoredColorTheme();
+    const mode = getStoredMode();
+    overlay.querySelectorAll('.theme-option').forEach((o) => {
+        o.classList.toggle('active', o.dataset.colorTheme === theme);
+        o.setAttribute('aria-pressed', String(o.dataset.colorTheme === theme));
+    });
+    overlay.querySelectorAll('.mode-btn').forEach((b) => {
+        b.classList.toggle('active', b.dataset.mode === mode);
+        b.setAttribute('aria-pressed', String(b.dataset.mode === mode));
+    });
 }
 
 export function openThemeModal() {
     let modal = document.getElementById('theme-modal');
     if (!modal) modal = buildThemeModal();
+    syncThemeModal();
     modal.classList.add('open');
 }
 
@@ -204,7 +309,7 @@ export function buildTopbar(container) {
           <span class="brand-badge">GFTV</span>
         </a>
         <div class="topbar-actions">
-<button class="btn-icon" id="theme-btn" title="Change theme">${Icons.palette}</button>
+<button class="btn-icon" id="theme-btn" title="Change theme" aria-label="Change theme">${getStoredMode() === 'dark' ? Icons.moon : Icons.sun}</button>
           ${user ? `
             <span class="text-sm text-muted">${user.display_name}</span>
             <button class="btn-icon" id="logout-btn" title="Log out">${Icons.logout}</button>

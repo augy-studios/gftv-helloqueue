@@ -1,5 +1,5 @@
-/* Import Google font - Jua */
-@import url("https://fonts.googleapis.com/css2?family=Jua:wght@200;300;400;500;600;700&display=swap");
+/* Font comes from style.css via --font. The submarine below is a fixed
+   illustration on its own dark-blue canvas and does not follow the theme. */
 
 * {
   /* Chrome and Opera */
@@ -23,14 +23,6 @@
   background: #6f6;
 }
 
-:link {
-    color: #6f6;
-}
-
-:visited {
-    color: #66f;
-}
-
 body {
   padding: 0;
   margin: 0;
@@ -41,7 +33,7 @@ body {
   text-align: center;
   align-items: center;
   color: white;
-  font-family: Jua;
+  font-family: var(--font);
   margin: 20px auto;
 }
 

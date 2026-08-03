@@ -1,10 +1,175 @@
-@import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* ── Structural tokens: no colour, no axis ───────────────────────────────────── */
+:root {
+  --font: 'Inter', sans-serif;
+  --glass-blur: blur(16px);
+  --radius: 14px;
+  --radius-sm: 8px;
+  --transition: 0.2s ease;
+}
+
+/* ── Colour theme x mode ─────────────────────────────────────────────────────── */
+/* Both attributes in every selector, so specificity is uniform at (0,3,0)
+   and nothing depends on source order. The pre-paint script guarantees both
+   attributes exist before first paint. */
+
+:root[data-color-theme="classic"][data-mode="light"] {
+  --brand: #fedc00;
+  --brand-dark: #d4b800;
+  --brand-text: #1a1400;
+  --brand-on: #1a1400;
+
+  --bg: #f4f4f4;
+  --surface: rgba(255, 255, 255, 0.72);
+  --surface-2: rgba(255, 255, 255, 0.50);
+  --border: rgba(0, 0, 0, 0.10);
+  --text: #111111;
+  --text-muted: #666666;
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  --shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.18);
+  --scrim: rgba(0, 0, 0, 0.35);
+
+  --status-serving: #10662f;
+  --status-waiting: #1d4ed8;
+  --status-missed: #9a4a00;
+  --status-completed: #55596b;
+  --status-error: #b03325;
+  --status-on: #ffffff;
+  --tint-base: rgba(255, 255, 255, 0.85);
+
+  --link: #2f7d32;
+  --link-visited: #4b4bd6;
+  --toggle-knob: #ffffff;
+}
+
+:root[data-color-theme="classic"][data-mode="dark"] {
+  --brand: #fedc00;
+  --brand-dark: #fedc00;
+  --brand-text: #ffe873;
+  --brand-on: #1a1400;
+
+  --bg: #101114;
+  --surface: rgba(255, 255, 255, 0.10);
+  --surface-2: rgba(255, 255, 255, 0.05);
+  --border: rgba(255, 255, 255, 0.14);
+  --text: #ececf0;
+  --text-muted: #a5a8b0;
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.50);
+  --shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.60);
+  --scrim: rgba(0, 0, 0, 0.60);
+
+  --status-serving: #22c55e;
+  --status-waiting: #60a5fa;
+  --status-missed: #fb923c;
+  --status-completed: #9aa2b1;
+  --status-error: #ff8a80;
+  --status-on: #0d0e10;
+  --tint-base: rgba(255, 255, 255, 0.04);
+
+  --link: #7ee787;
+  --link-visited: #a9a9ff;
+  --toggle-knob: #ececf0;
+}
+
+:root[data-color-theme="hello"][data-mode="light"] {
+  --brand: #ffffff;
+  --brand-dark: #333333;
+  --brand-text: #111111;
+  --brand-on: #111111;
+
+  --bg: #fedc00;
+  --surface: rgba(255, 255, 255, 0.65);
+  --surface-2: rgba(255, 255, 255, 0.40);
+  --border: rgba(0, 0, 0, 0.12);
+  --text: #1a1400;
+  --text-muted: #5a4d00;
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+  --shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.22);
+  --scrim: rgba(0, 0, 0, 0.35);
+
+  --status-serving: #10662f;
+  --status-waiting: #1d4ed8;
+  --status-missed: #9a4a00;
+  --status-completed: #55596b;
+  --status-error: #b03325;
+  --status-on: #ffffff;
+  --tint-base: rgba(255, 255, 255, 0.85);
+
+  --link: #1f5c22;
+  --link-visited: #4b4bd6;
+  --toggle-knob: #ffffff;
+}
+
+:root[data-color-theme="hello"][data-mode="dark"] {
+  --brand: #ffffff;
+  --brand-dark: #ffffff;
+  --brand-text: #ffe873;
+  --brand-on: #14120a;
+
+  --bg: #14120a;
+  --surface: rgba(254, 220, 0, 0.14);
+  --surface-2: rgba(254, 220, 0, 0.08);
+  --border: rgba(254, 220, 0, 0.20);
+  --text: #f5f0dc;
+  --text-muted: #c4ba8e;
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.55);
+  --shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.65);
+  --scrim: rgba(0, 0, 0, 0.60);
+
+  --status-serving: #22c55e;
+  --status-waiting: #60a5fa;
+  --status-missed: #fb923c;
+  --status-completed: #9aa2b1;
+  --status-error: #ff8a80;
+  --status-on: #14120a;
+  --tint-base: rgba(255, 255, 255, 0.04);
+
+  --link: #7ee787;
+  --link-visited: #a9a9ff;
+  --toggle-knob: #f5f0dc;
+}
+
+/* ── Derived tokens: resolve per combination ─────────────────────────────────── */
+:root {
+  /* Secondary text on a nested --surface-2 control. */
+  --text-muted-strong: color-mix(in srgb, var(--text) 70%, transparent);
+
+  /* Focus indicator. Border tokens are all under 3:1; the containment ring
+     in the :focus-visible rule is what carries the weakest combination. */
+  --focus-ring: var(--brand-dark);
+
+  /* Status tints, 15% of the status colour over the mode's tint base.
+     Each status reads at or above 4.5:1 against its own tint. */
+  --tint-serving: color-mix(in srgb, var(--status-serving) 15%, var(--tint-base));
+  --tint-waiting: color-mix(in srgb, var(--status-waiting) 15%, var(--tint-base));
+  --tint-missed: color-mix(in srgb, var(--status-missed) 15%, var(--tint-base));
+  --tint-completed: color-mix(in srgb, var(--status-completed) 15%, var(--tint-base));
+  --tint-error: color-mix(in srgb, var(--status-error) 15%, var(--tint-base));
+  --tint-error-strong: color-mix(in srgb, var(--status-error) 30%, var(--tint-base));
+
+  /* Spec status names, aliased onto this repo's palette. */
+  --ok: var(--status-serving);
+  --ok-on: var(--status-on);
+  --ok-hover: color-mix(in srgb, var(--ok) 85%, var(--text));
+  --warn: var(--status-missed);
+  --danger: var(--status-error);
+  --danger-on: var(--status-on);
+  --danger-hover: color-mix(in srgb, var(--danger) 85%, var(--text));
+  --callout-ok-bg: var(--tint-serving);
+  --callout-warn-bg: var(--tint-missed);
+  --callout-danger-bg: var(--tint-error);
+
+  /* Chips sitting on a solid status fill. */
+  --chip-on-fill: color-mix(in srgb, var(--status-on) 25%, transparent);
+  --chip-on-fill-weak: color-mix(in srgb, var(--status-on) 15%, transparent);
+}
 
 * {
   padding: 0;
   margin: 0;
   box-sizing: border-box;
-  font-family: "Jua", sans-serif;
+  font-family: var(--font);
 
   /* Chrome and Opera */
   user-select: none;
@@ -22,12 +187,34 @@
   -ms-user-select: none;
 }
 
-:link {
-  color: #6f6;
+/* In-content anchors only. :link at (0,1,0) beats a { color: inherit } at
+   (0,0,1), so without the :not([class]) guard this leaks onto the topbar
+   brand, buttons, and sidebar links, which are chrome and must inherit. */
+:link:not([class]) {
+  color: var(--link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
-:visited {
-  color: #66f;
+:visited:not([class]) {
+  color: var(--link-visited);
+}
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--text) 45%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }
 
 .hero {
@@ -40,7 +227,7 @@
 .hero-badge {
   display: inline-block;
   background: var(--brand);
-  color: var(--brand-text);
+  color: var(--brand-on);
   padding: 4px 14px;
   border-radius: 99px;
   font-size: 0.82rem;
@@ -104,48 +291,6 @@
   border-top: 1px solid var(--border);
 }
 
-/* ── CSS Variables ──────────────────────────────────────────────────────────── */
-:root {
-  --brand: #fedc00;
-  --brand-dark: #d4b800;
-  --brand-text: #1a1400;
-
-  /* Light theme (default) */
-  --bg: #f4f4f4;
-  --surface: rgba(255, 255, 255, 0.72);
-  --surface-2: rgba(255, 255, 255, 0.50);
-  --border: rgba(0, 0, 0, 0.10);
-  --text: #111111;
-  --text-muted: #666666;
-  --shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
-  --glass-blur: blur(16px);
-
-  /* Status colours */
-  --status-serving: #22c55e;
-  --status-waiting: #3b82f6;
-  --status-missed: #f97316;
-  --status-completed: #6b7280;
-  --status-error: #ef4444;
-
-  --radius: 14px;
-  --radius-sm: 8px;
-  --transition: 0.2s ease;
-}
-
-/* ── HelloTheme ─────────────────────────────────────────────────────────────── */
-[data-theme="hello"] {
-  --bg: #fedc00;
-  --brand: #ffffff;
-  --brand-dark: #333333;
-  --brand-text: #111111;
-  --surface: rgba(255, 255, 255, 0.65);
-  --surface-2: rgba(255, 255, 255, 0.40);
-  --border: rgba(0, 0, 0, 0.12);
-  --text: #1a1400;
-  --text-muted: #5a4d00;
-  --shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
-}
-
 /* ── Reset & Base ────────────────────────────────────────────────────────────── */
 *,
 *::before,
@@ -160,7 +305,7 @@ html {
 }
 
 body {
-  font-family: 'Jua', sans-serif;
+  font-family: var(--font);
   background-color: var(--bg);
   color: var(--text);
   min-height: 100vh;
@@ -173,8 +318,12 @@ a {
   text-decoration: none;
 }
 
+a:hover {
+  text-decoration: none;
+}
+
 button {
-  font-family: 'Jua', sans-serif;
+  font-family: var(--font);
   cursor: pointer;
   border: none;
 }
@@ -182,11 +331,11 @@ button {
 input,
 select,
 textarea {
-  font-family: 'Jua', sans-serif;
+  font-family: var(--font);
 }
 
 /* ── Glass card ──────────────────────────────────────────────────────────────── */
-.glass {
+.glass-card {
   background: var(--surface);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
@@ -236,7 +385,7 @@ textarea {
 
 .topbar-brand .brand-badge {
   background: var(--brand);
-  color: var(--brand-text);
+  color: var(--brand-on);
   padding: 2px 10px;
   border-radius: 6px;
   font-size: 0.85rem;
@@ -255,7 +404,7 @@ textarea {
   gap: 7px;
   padding: 9px 18px;
   border-radius: var(--radius-sm);
-  font-family: 'Jua', sans-serif;
+  font-family: var(--font);
   font-size: 0.9rem;
   transition: filter var(--transition), opacity var(--transition), transform var(--transition);
   white-space: nowrap;
@@ -272,7 +421,7 @@ textarea {
 
 .btn-primary {
   background: var(--brand);
-  color: var(--brand-text);
+  color: var(--brand-on);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -290,21 +439,21 @@ textarea {
 }
 
 .btn-danger {
-  background: var(--status-error);
-  color: #fff;
+  background: var(--danger);
+  color: var(--danger-on);
 }
 
 .btn-danger:hover:not(:disabled) {
-  filter: brightness(0.9);
+  background: var(--danger-hover);
 }
 
 .btn-success {
-  background: var(--status-serving);
-  color: #fff;
+  background: var(--ok);
+  color: var(--ok-on);
 }
 
 .btn-success:hover:not(:disabled) {
-  filter: brightness(0.9);
+  background: var(--ok-hover);
 }
 
 .btn-icon {
@@ -369,7 +518,7 @@ textarea:focus {
   border-radius: var(--radius-sm);
   font-size: 1.4rem;
   font-weight: 400;
-  color: #fff;
+  color: var(--status-on);
   flex-shrink: 0;
 }
 
@@ -415,23 +564,23 @@ textarea:focus {
 }
 
 .status-pill.open {
-  background: rgba(34, 197, 94, 0.15);
+  background: var(--tint-serving);
   color: var(--status-serving);
 }
 
 .status-pill.closed {
-  background: rgba(107, 114, 128, 0.15);
+  background: var(--tint-completed);
   color: var(--status-completed);
 }
 
 .status-pill.active {
-  background: rgba(59, 130, 246, 0.15);
+  background: var(--tint-waiting);
   color: var(--status-waiting);
 }
 
 .status-pill.draft {
-  background: rgba(249, 115, 22, 0.15);
-  color: var(--status-missed);
+  background: var(--callout-warn-bg);
+  color: var(--warn);
 }
 
 /* ── Operator columns ────────────────────────────────────────────────────────── */
@@ -479,19 +628,19 @@ textarea:focus {
 }
 
 .col-serving .queue-col-header {
-  background: rgba(34, 197, 94, 0.12);
+  background: var(--tint-serving);
 }
 
 .col-waiting .queue-col-header {
-  background: rgba(59, 130, 246, 0.12);
+  background: var(--tint-waiting);
 }
 
 .col-missed .queue-col-header {
-  background: rgba(249, 115, 22, 0.12);
+  background: var(--tint-missed);
 }
 
 .col-completed .queue-col-header {
-  background: rgba(107, 114, 128, 0.12);
+  background: var(--tint-completed);
 }
 
 /* ── Entry card ──────────────────────────────────────────────────────────────── */
@@ -522,7 +671,7 @@ textarea:focus {
   padding: 4px;
   border-radius: 5px;
   background: transparent;
-  color: var(--text-muted);
+  color: var(--text-muted-strong);
   line-height: 0;
   transition: background var(--transition), color var(--transition);
 }
@@ -533,13 +682,13 @@ textarea:focus {
 }
 
 .entry-action-btn.danger:hover {
-  background: rgba(239, 68, 68, 0.15);
-  color: var(--status-error);
+  background: var(--callout-danger-bg);
+  color: var(--danger);
 }
 
 .entry-action-btn.success:hover {
-  background: rgba(34, 197, 94, 0.15);
-  color: var(--status-serving);
+  background: var(--callout-ok-bg);
+  color: var(--ok);
 }
 
 /* ── QR animated border ──────────────────────────────────────────────────────── */
@@ -582,7 +731,7 @@ textarea:focus {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--scrim);
   backdrop-filter: blur(4px);
   z-index: 500;
   display: flex;
@@ -606,7 +755,7 @@ textarea:focus {
   backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-modal);
   padding: 28px;
   transform: translateY(10px);
   transition: transform 0.2s;
@@ -643,6 +792,49 @@ textarea:focus {
 }
 
 /* ── Theme picker ────────────────────────────────────────────────────────────── */
+.modal-section-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.mode-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.mode-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 0.88rem;
+  transition: background var(--transition), color var(--transition);
+}
+
+.mode-btn:hover {
+  background: var(--surface);
+}
+
+/* The ring carries the active state in hello light, where --brand is
+   #ffffff and the fill alone vanishes on a light modal. */
+.mode-btn.active {
+  background: var(--brand);
+  color: var(--brand-on);
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--text) 50%, transparent);
+}
+
 .theme-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -654,10 +846,10 @@ textarea:focus {
   border-radius: var(--radius-sm);
   padding: 12px;
   cursor: pointer;
-  transition: border-color var(--transition);
+  transition: border-color var(--transition), box-shadow var(--transition);
   background: none;
   text-align: left;
-  font-family: 'Jua', sans-serif;
+  font-family: var(--font);
   color: var(--text);
 }
 
@@ -665,8 +857,11 @@ textarea:focus {
   border-color: var(--brand);
 }
 
+/* The containment ring keeps the near-white classic swatch visible
+   on a light modal, where --brand alone would vanish. */
 .theme-option.active {
   border-color: var(--brand);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--text) 50%, transparent);
 }
 
 .theme-swatch {
@@ -674,7 +869,7 @@ textarea:focus {
   height: 36px;
   border-radius: 6px;
   margin-bottom: 8px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  border: 1px solid color-mix(in srgb, var(--text) 30%, transparent);
 }
 
 .theme-name {
@@ -707,11 +902,11 @@ textarea:focus {
 }
 
 .toast.success {
-  border-left: 4px solid var(--status-serving);
+  border-left: 4px solid var(--ok);
 }
 
 .toast.error {
-  border-left: 4px solid var(--status-error);
+  border-left: 4px solid var(--danger);
 }
 
 .toast.info {
@@ -855,7 +1050,7 @@ textarea:focus {
   height: 16px;
   left: 3px;
   top: 3px;
-  background: #fff;
+  background: var(--toggle-knob);
   border-radius: 50%;
   transition: transform var(--transition);
 }
@@ -936,7 +1131,7 @@ textarea:focus {
   height: 90px;
   border-radius: var(--radius);
   background: var(--status-error);
-  color: #fff;
+  color: var(--status-on);
   font-size: 2.6rem;
 }
 
@@ -963,9 +1158,9 @@ textarea:focus {
   width: 44px;
   height: 44px;
   border-radius: var(--radius-sm);
-  background: rgba(239, 68, 68, 0.15);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: var(--status-error);
+  background: var(--callout-danger-bg);
+  border: 1px solid var(--tint-error-strong);
+  color: var(--danger);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1004,7 +1199,7 @@ textarea:focus {
 
 .display-stat-label {
   font-size: 0.75rem;
-  color: var(--text-muted);
+  color: var(--text-muted-strong);
 }
 
 .display-wait-time {
@@ -1012,6 +1207,7 @@ textarea:focus {
   color: var(--status-error);
 }
 
+/* Stays hardcoded white in both modes: a QR needs a white quiet zone to scan. */
 .display-qr-wrap {
   width: 180px;
   height: 180px;
@@ -1069,7 +1265,7 @@ textarea:focus {
   background: none;
   width: 100%;
   text-align: left;
-  font-family: 'Jua', sans-serif;
+  font-family: var(--font);
 }
 
 .sidebar-item:hover {
@@ -1078,7 +1274,7 @@ textarea:focus {
 
 .sidebar-item.active {
   background: var(--brand);
-  color: var(--brand-text);
+  color: var(--brand-on);
 }
 
 .main-content {
@@ -1174,7 +1370,7 @@ textarea:focus {
 
 .max-serving-btn:hover {
   background: var(--brand);
-  color: var(--brand-text);
+  color: var(--brand-on);
 }
 
 /* ── Scanner UI ──────────────────────────────────────────────────────────────── */
@@ -1201,15 +1397,15 @@ textarea:focus {
 }
 
 .scanner-result.valid {
-  background: rgba(34, 197, 94, 0.15);
-  border-color: var(--status-serving);
-  color: var(--status-serving);
+  background: var(--callout-ok-bg);
+  border-color: var(--ok);
+  color: var(--ok);
 }
 
 .scanner-result.invalid {
-  background: rgba(239, 68, 68, 0.15);
-  border-color: var(--status-error);
-  color: var(--status-error);
+  background: var(--callout-danger-bg);
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
 /* ── Auth pages ──────────────────────────────────────────────────────────────── */
@@ -1240,8 +1436,11 @@ textarea:focus {
   margin-bottom: 24px;
 }
 
+/* Accent text at body size uses --brand-text, never --brand-dark. */
 .auth-link {
-  color: var(--brand-dark);
+  color: var(--brand-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /* ── Misc ────────────────────────────────────────────────────────────────────── */

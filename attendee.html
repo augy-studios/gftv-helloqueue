@@ -28,9 +28,20 @@
     <meta property="og:site_name" content="GFTV TIDSC" />
     <meta property="og:description" content="GFTV Virtual Queue Management System" />
 
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Jua">
+    <meta name="theme-color" content="#f4f4f4" />
+    <script>
+        // Pre-paint: land both theme axes before first paint, so every colour
+        // block can select on both without an attribute-missing fallback.
+        (function () {
+            var k = "gftv-helloqueue";
+            var m = localStorage.getItem(k + ".mode") || "light";
+            var c = localStorage.getItem(k + ".colorTheme") || "classic";
+            document.documentElement.setAttribute("data-mode", m);
+            document.documentElement.setAttribute("data-color-theme", c);
+        })();
+    </script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
     <link rel="stylesheet" href="/style.css">
-    <meta name="theme-color" content="#ccffcc" />
 
     <link rel="apple-touch-icon" href="/GHQ-main.png">
     <link rel="icon" href="/favicon.ico">
@@ -69,7 +80,7 @@
                     <button class="btn btn-primary w-full" id="tg-generate-btn">Generate code</button>
                 </div>
                 <div id="tg-connect-step-code" style="display:none;">
-                    <div id="tg-command-box" style="background:var(--surface-2,#f5f5f5);border-radius:var(--radius-sm);padding:16px;text-align:center;margin-bottom:16px;cursor:pointer;user-select:none;" title="Tap to copy">
+                    <div id="tg-command-box" style="background:var(--surface-2);border-radius:var(--radius-sm);padding:16px;text-align:center;margin-bottom:16px;cursor:pointer;user-select:none;" title="Tap to copy">
                         <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;">Tap to copy command:</div>
                         <div id="tg-command-display" style="font-family:monospace;font-size:1.1rem;font-weight:bold;letter-spacing:0.05em;"></div>
                         <div id="tg-copy-hint" style="font-size:0.75rem;color:var(--text-muted);margin-top:6px;">Copy</div>
@@ -99,7 +110,7 @@
         initTheme();
         buildTopbar(document.getElementById('topbar-root'));
 
-        // Type B page — always initialise a guest signing key before any /api/ calls
+        // Type B page: always initialise a guest signing key before any /api/ calls
         try { await initGuestKey('helloqueue-attendee'); } catch (e) { console.warn('Guest key init failed:', e.message); }
 
         const parts = window.location.pathname.split('/').filter(Boolean);
@@ -108,7 +119,7 @@
 
         if (!eventCode || !queueCode) {
             document.getElementById('attendee-content').innerHTML = `
-                <div class="glass queue-card" style="text-align:center;padding:32px;">
+                <div class="glass-card queue-card" style="text-align:center;padding:32px;">
                     <div style="margin:8px 0;">${Icons.meh.replace('width="18" height="18"', 'width="48" height="48"')}</div>
                     <div style="margin-top:10px;">Invalid queue link.</div>
                 </div>`;
@@ -168,7 +179,7 @@
                 queueId = displayData.queue?.id || null;
             } catch {
                 document.getElementById('attendee-content').innerHTML = `
-                    <div class="glass queue-card" style="text-align:center;padding:32px;">
+                    <div class="glass-card queue-card" style="text-align:center;padding:32px;">
                         <div style="margin:8px 0;">${Icons.x.replace('width="15" height="15"', 'width="48" height="48"')}</div>
                         <div style="margin-top:10px;">Queue not found.</div>
                     </div>`;
@@ -211,10 +222,10 @@
                     return;
                 }
                 if (hasRendered) {
-                    // Don't wipe the UI on a transient server error — just notify
+                    // Don't wipe the UI on a transient server error, just notify
                     toast(err.message, 'error');
                 } else if (!silent) {
-                    content.innerHTML = `<div class="glass queue-card" style="text-align:center;padding:32px;">${err.message}</div>`;
+                    content.innerHTML = `<div class="glass-card queue-card" style="text-align:center;padding:32px;">${err.message}</div>`;
                 }
             }
         }
@@ -234,7 +245,7 @@
             let qrBlock = '';
             if (isServing && data.qr_data_url) {
                 const qrLabel = hasEntered
-                    ? `${Icons.check} Entrance confirmed — show this QR code at the exit`
+                    ? `${Icons.check} Entrance confirmed, show this QR code at the exit`
                     : 'Show this QR code at the entrance';
                 const qrHint = hasEntered
                     ? 'Keep this page open until you are ready to leave'
@@ -258,10 +269,10 @@
             let statusBanner = '';
             if (isServing) {
                 statusBanner = hasEntered
-                    ? `<div style="background:var(--status-serving);color:#fff;padding:12px;border-radius:var(--radius-sm);text-align:center;margin-bottom:14px;font-size:1.05rem;">${Icons.check} You have entered! Show your QR code at the exit when you leave.</div>`
-                    : `<div style="background:var(--status-serving);color:#fff;padding:12px;border-radius:var(--radius-sm);text-align:center;margin-bottom:14px;font-size:1.05rem;">${Icons.star} It's your turn! Proceed to the entrance.</div>`;
+                    ? `<div style="background:var(--status-serving);color:var(--status-on);padding:12px;border-radius:var(--radius-sm);text-align:center;margin-bottom:14px;font-size:1.05rem;">${Icons.check} You have entered! Show your QR code at the exit when you leave.</div>`
+                    : `<div style="background:var(--status-serving);color:var(--status-on);padding:12px;border-radius:var(--radius-sm);text-align:center;margin-bottom:14px;font-size:1.05rem;">${Icons.star} It's your turn! Proceed to the entrance.</div>`;
             } else if (isMissed) {
-                statusBanner = `<div style="background:var(--status-missed);color:#fff;padding:12px;border-radius:var(--radius-sm);text-align:center;margin-bottom:14px;">${Icons.frown} You missed your turn. You can rejoin below.</div>`;
+                statusBanner = `<div style="background:var(--status-missed);color:var(--status-on);padding:12px;border-radius:var(--radius-sm);text-align:center;margin-bottom:14px;">${Icons.frown} You missed your turn. You can rejoin below.</div>`;
             }
 
             content.innerHTML = `
@@ -273,7 +284,7 @@
                 ${statusBanner}
 
                 ${entry ? `
-                    <div class="glass queue-card">
+                    <div class="glass-card queue-card">
                         <div class="your-number">
                             <div class="your-number-label">Your Queue Number</div>
                             <div class="your-number-badge queue-number-lg ${entry.status}">${entry.queue_number}</div>
@@ -298,7 +309,7 @@
                         </div>
                     </div>
 
-                    <div class="glass queue-card" style="margin-top:12px;">
+                    <div class="glass-card queue-card" style="margin-top:12px;">
                         <div class="section-label">Notifications (via Telegram)</div>
                         <div class="notify-toggles">
                             <div class="notify-toggle-row">
@@ -323,7 +334,7 @@
                         ${!isServing ? `<button class="btn btn-danger w-full" id="leave-btn">Leave Queue</button>` : ''}
                     </div>
                 ` : `
-                    <div class="glass queue-card">
+                    <div class="glass-card queue-card">
                         <div style="text-align:center;padding:10px 0 16px;">
                             <div style="margin-bottom:4px;">${Icons.ticket.replace('width="20" height="20"', 'width="48" height="48"')}</div>
                             <div style="margin:10px 0;font-size:1.05rem;">Join the queue</div>
@@ -348,7 +359,7 @@
                     await navigator.clipboard.writeText(token);
                     toast('Token copied!', 'success');
                 } catch {
-                    toast('Could not copy — try long-pressing the text', 'info');
+                    toast('Could not copy, try long-pressing the text', 'info');
                 }
             });
 
@@ -404,13 +415,13 @@
                     <div style="font-size:1.4rem;">${display?.event?.name || 'Event'}</div>
                     <div class="text-muted" style="font-size:0.9rem;">${display?.queue?.name || 'Queue'}</div>
                 </div>
-                <div class="glass queue-card">
+                <div class="glass-card queue-card">
                     <div class="info-row"><span class="info-row-label">Status</span><span class="info-row-value">${queueStatus}</span></div>
                     <div class="info-row"><span class="info-row-label">Now serving</span><span class="info-row-value highlight">${display?.serving?.[0] ?? '-'}</span></div>
                     <div class="info-row"><span class="info-row-label">Waiting</span><span class="info-row-value">${display?.total_in_queue || 0} people</span></div>
                     <div class="info-row"><span class="info-row-label">Est. wait</span><span class="info-row-value">~${display?.est_wait_minutes || 0} min</span></div>
                 </div>
-                <div class="glass queue-card" style="margin-top:12px;text-align:center;padding:24px;">
+                <div class="glass-card queue-card" style="margin-top:12px;text-align:center;padding:24px;">
                     <div style="margin-bottom:10px;">${Icons.plane.replace('width="18" height="18"', 'width="40" height="40"')}</div>
                     <div style="margin-bottom:6px;font-size:1rem;font-weight:600;">Join via Telegram</div>
                     <div style="margin-bottom:16px;font-size:0.88rem;color:var(--text-muted);">
