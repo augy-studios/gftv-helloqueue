@@ -1,7 +1,7 @@
 // Bump on every change to anything this worker serves. The browser compares
 // this file byte for byte, so a version left alone is an update nobody is
 // ever prompted about. See update-bar-spec.md.
-const CACHE = "helloqueue-v41";
+const CACHE = "helloqueue-v42";
 
 const ASSETS = [
   "/",
@@ -62,6 +62,11 @@ self.addEventListener("message", (event) => {
 self.addEventListener("fetch", (event) => {
   // The cache only holds GET responses; cache.put rejects anything else.
   if (event.request.method !== "GET") return;
+
+  // API responses are never cached. Serving a stale /api/auth/guest-key from
+  // cache hands the page a signing key that expired minutes ago, and every
+  // signed request after it (TOTP verify, register, …) is then rejected.
+  if (new URL(event.request.url).pathname.startsWith("/api/")) return;
 
   event.respondWith(
     caches.match(event.request).then((cached) => {
