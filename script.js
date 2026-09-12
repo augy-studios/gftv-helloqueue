@@ -36,6 +36,10 @@ export const Icons = {
     plane: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2L16 11l3.5-3.5C21 6 21 4 19 4c-2 0-4 2-5.5 3.5L5 4 2.8 6.2l7 3.5-3.5 3.5-1.5-.5L3 14l2 1.5 1.5 2 1-1.5-.5-1.5 3.5-3.5 3.5 7z"/></svg>`,
     frown: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-4-2-4 2-4 2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>`,
     meh: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="8" y1="15" x2="16" y2="15"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>`,
+    clock: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+    chevronDown: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`,
+    globe: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`,
+    lock: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
 };
 
 // Theme: two independent axes, colour theme and light/dark mode.
@@ -80,8 +84,37 @@ export function getStoredColorTheme() {
     return COLOR_THEMES.some((t) => t.id === v) ? v : 'classic';
 }
 
+/* Mode preference and mode are different things. The preference is what the
+   person chose and can be "time"; the mode is what the document is in and is
+   only ever light or dark. */
+
+export const MODE_PREFERENCES = ['light', 'dark', 'time'];
+
+/* The daylight window. Duplicated in the pre-paint script in every head, which
+   has to resolve this before first paint and cannot import anything. Change
+   both together. */
+export const LIGHT_FROM_HOUR = 9;
+export const LIGHT_UNTIL_HOUR = 18;
+
+export function getModePreference() {
+    const v = localStorage.getItem(KEY_MODE);
+    return MODE_PREFERENCES.includes(v) ? v : 'light';
+}
+
+export function isDaylightHours(now = new Date()) {
+    const hour = now.getHours();
+    return hour >= LIGHT_FROM_HOUR && hour < LIGHT_UNTIL_HOUR;
+}
+
+export function resolveMode(preference) {
+    if (preference === 'time') return isDaylightHours() ? 'light' : 'dark';
+    return preference === 'dark' ? 'dark' : 'light';
+}
+
+// The mode the document is in right now, resolved. What syncMeta, the theme
+// button icon, and withLightMode all want.
 export function getStoredMode() {
-    return localStorage.getItem(KEY_MODE) === 'dark' ? 'dark' : 'light';
+    return resolveMode(getModePreference());
 }
 
 function syncMeta() {
@@ -104,19 +137,97 @@ export function applyColorTheme(id) {
     return theme;
 }
 
-export function applyMode(mode) {
-    const resolved = mode === 'dark' ? 'dark' : 'light';
+export function applyMode(preference) {
+    const chosen = MODE_PREFERENCES.includes(preference) ? preference : 'light';
+    const resolved = resolveMode(chosen);
+
     document.documentElement.setAttribute('data-mode', resolved);
-    localStorage.setItem(KEY_MODE, resolved);
+    document.documentElement.setAttribute('data-mode-preference', chosen);
+    // The preference, never the resolved value: storing "dark" on a winter
+    // evening would silently end the time based setting the person chose.
+    localStorage.setItem(KEY_MODE, chosen);
+
     syncMeta();
     syncThemeBtnIcon();
+    scheduleModeCheck();
+
     return resolved;
+}
+
+/* Keeping the time based mode honest while the page stays open. */
+
+let modeTimer = null;
+let watchingVisibility = false;
+
+// Milliseconds until the next 09:00 or 18:00, whichever comes first.
+function msUntilNextBoundary(now = new Date()) {
+    const next = new Date(now);
+    next.setMinutes(0, 0, 0);
+
+    const hour = now.getHours();
+    if (hour < LIGHT_FROM_HOUR) {
+        next.setHours(LIGHT_FROM_HOUR);
+    } else if (hour < LIGHT_UNTIL_HOUR) {
+        next.setHours(LIGHT_UNTIL_HOUR);
+    } else {
+        next.setDate(next.getDate() + 1);
+        next.setHours(LIGHT_FROM_HOUR);
+    }
+
+    // A second of slack, so a timer that fires a fraction early does not land
+    // back in the hour it just left and reschedule itself in a tight loop.
+    return Math.max(1000, next.getTime() - now.getTime() + 1000);
+}
+
+function scheduleModeCheck() {
+    if (modeTimer !== null) {
+        clearTimeout(modeTimer);
+        modeTimer = null;
+    }
+
+    if (getModePreference() !== 'time') return;
+
+    modeTimer = setTimeout(() => {
+        modeTimer = null;
+        refreshTimeMode();
+    }, msUntilNextBoundary());
+
+    // A laptop that sleeps through the boundary fires its timer late, and
+    // coming back to the tab is the moment to notice.
+    if (!watchingVisibility && typeof document !== 'undefined') {
+        watchingVisibility = true;
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') refreshTimeMode();
+        });
+    }
+}
+
+export function refreshTimeMode() {
+    if (getModePreference() !== 'time') return;
+
+    const resolved = resolveMode('time');
+    const current = document.documentElement.getAttribute('data-mode');
+
+    if (resolved !== current) {
+        document.documentElement.setAttribute('data-mode', resolved);
+        syncMeta();
+        syncThemeBtnIcon();
+        document.dispatchEvent(
+            new CustomEvent('gftv:modechange', {
+                detail: { mode: resolved, preference: 'time' },
+            })
+        );
+    }
+
+    scheduleModeCheck();
 }
 
 export function initTheme() {
     migrateLegacy();
     applyColorTheme(getStoredColorTheme());
-    applyMode(getStoredMode());
+    // The preference, not the resolved mode. Passing the resolved one would
+    // quietly rewrite a stored "time" into "dark" the first evening.
+    applyMode(getModePreference());
 }
 
 // Forces classic + light for the duration of fn, then restores both axes.
@@ -148,9 +259,11 @@ export function buildThemeModal() {
       </div>
       <div class="modal-section-label">Mode</div>
       <div class="mode-toggle" id="mode-toggle">
-        <button class="mode-btn" type="button" data-mode="light">${Icons.sun} Light</button>
-        <button class="mode-btn" type="button" data-mode="dark">${Icons.moon} Dark</button>
+        <button class="mode-btn" type="button" data-mode="light" aria-pressed="false">${Icons.sun} Light</button>
+        <button class="mode-btn" type="button" data-mode="dark" aria-pressed="false">${Icons.moon} Dark</button>
+        <button class="mode-btn mode-btn-wide" type="button" data-mode="time" aria-pressed="false">${Icons.clock} Time-based</button>
       </div>
+      <p class="mode-note" id="mode-note" hidden></p>
       <div class="modal-section-label">Colour theme</div>
       <div class="theme-grid" id="swatch-grid">
         ${COLOR_THEMES.map((t) => `
@@ -187,6 +300,10 @@ export function buildThemeModal() {
         }
     });
 
+    // A tab left open across 09:00 or 18:00 changes mode by itself; redraw
+    // rather than showing the answer from before dinner.
+    document.addEventListener('gftv:modechange', syncThemeModal);
+
     syncThemeModal();
     return overlay;
 }
@@ -196,15 +313,30 @@ function syncThemeModal() {
     const overlay = document.getElementById('theme-modal');
     if (!overlay) return;
     const theme = getStoredColorTheme();
-    const mode = getStoredMode();
+    // The pressed button is the preference; the note says what the clock
+    // resolved it to, so the two are never confused.
+    const preference = getModePreference();
+    const resolved = getStoredMode();
     overlay.querySelectorAll('.theme-option').forEach((o) => {
         o.classList.toggle('active', o.dataset.colorTheme === theme);
         o.setAttribute('aria-pressed', String(o.dataset.colorTheme === theme));
     });
     overlay.querySelectorAll('.mode-btn').forEach((b) => {
-        b.classList.toggle('active', b.dataset.mode === mode);
-        b.setAttribute('aria-pressed', String(b.dataset.mode === mode));
+        b.classList.toggle('active', b.dataset.mode === preference);
+        b.setAttribute('aria-pressed', String(b.dataset.mode === preference));
     });
+    const note = overlay.querySelector('#mode-note');
+    if (note) {
+        if (preference === 'time') {
+            const from = String(LIGHT_FROM_HOUR).padStart(2, '0');
+            const until = String(LIGHT_UNTIL_HOUR).padStart(2, '0');
+            note.textContent = `Following your device clock: ${resolved} mode right now. Light from ${from}:00 to ${until}:00, dark the rest of the day.`;
+            note.hidden = false;
+        } else {
+            note.textContent = '';
+            note.hidden = true;
+        }
+    }
 }
 
 export function openThemeModal() {

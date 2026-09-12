@@ -1,8 +1,19 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+/* Proxima Nova is licensed and is not on Google Fonts, so it is self hosted
+   rather than imported. Only the Regular weight has been supplied; the browser
+   synthesises the heavier weights from it. Add a block per weight as the
+   files arrive, and never declare a weight whose file is not in assets/fonts/. */
+@font-face {
+  font-family: 'Proxima Nova';
+  src: url('/assets/fonts/ProximaNova-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
 
 /* ── Structural tokens: no colour, no axis ───────────────────────────────────── */
 :root {
-  --font: 'Inter', sans-serif;
+  --font: 'Proxima Nova', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, Helvetica, Arial, sans-serif;
   --glass-blur: blur(16px);
   --radius: 14px;
   --radius-sm: 8px;
@@ -163,6 +174,11 @@
   /* Chips sitting on a solid status fill. */
   --chip-on-fill: color-mix(in srgb, var(--status-on) 25%, transparent);
   --chip-on-fill-weak: color-mix(in srgb, var(--status-on) 15%, transparent);
+
+  /* The quieter ground beside --bg, from the theme contract. Derived rather
+     than picked so it steps the right way in both modes: the official bar
+     sits on it. */
+  --bg-alt: color-mix(in srgb, var(--bg) 94%, var(--text));
 }
 
 * {
@@ -305,7 +321,6 @@ html {
 }
 
 body {
-  font-family: var(--font);
   background-color: var(--bg);
   color: var(--text);
   min-height: 100vh;
@@ -323,7 +338,6 @@ a:hover {
 }
 
 button {
-  font-family: var(--font);
   cursor: pointer;
   border: none;
 }
@@ -331,7 +345,6 @@ button {
 input,
 select,
 textarea {
-  font-family: var(--font);
 }
 
 /* ── Glass card ──────────────────────────────────────────────────────────────── */
@@ -357,6 +370,206 @@ textarea {
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 20px;
+}
+
+/* ── Official site banner ────────────────────────────────────────────────────── */
+/* See gftv-official.md. Permanent, collapsed by default, and the least
+   visually interesting thing on the page: a fact, not an alert. Every value
+   is a theme token. */
+.gov-bar {
+  background: var(--bg-alt);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  /* The topmost element on the page, so it sits under the notch. */
+  padding-top: env(safe-area-inset-top);
+}
+
+.gov-bar-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 6px 20px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.gov-bar-mark {
+  display: block;
+  flex: none;
+  width: 24px;
+  height: 16px;
+  border-radius: 2px;
+}
+
+/* One row at every width down to 320px. Below the single breakpoint the copy
+   is shortened rather than wrapped, so the bar never grows tall enough to
+   push the header off a small screen. */
+.gov-bar-line {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gov-bar-line-short {
+  display: none;
+}
+
+@media (max-width: 480px) {
+  .gov-bar {
+    font-size: 0.75rem;
+  }
+
+  .gov-bar-inner,
+  .gov-bar-points {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .gov-bar-inner {
+    gap: 8px;
+  }
+
+  .gov-bar-line-long {
+    display: none;
+  }
+
+  .gov-bar-line-short {
+    display: inline;
+  }
+}
+
+/* Reads as a link rather than a button. Focus ring comes from the shared
+   :focus-visible rule. */
+.gov-bar-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  margin-right: -4px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--brand-text);
+  font-size: inherit;
+  white-space: nowrap;
+}
+
+.gov-bar-toggle svg {
+  transition: transform var(--transition);
+}
+
+.gov-bar-toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+/* The panel is the same surface growing, not a new one appearing. Height
+   animates through the grid row trick so no fixed max-height is guessed. */
+.gov-bar-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--transition);
+}
+
+.gov-bar-panel[hidden] {
+  display: none;
+}
+
+.gov-bar-panel.open {
+  grid-template-rows: 1fr;
+}
+
+.gov-bar-panel-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.gov-bar-points {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 4px 20px 6px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 32px;
+}
+
+/* Points stack in the order written, so the domain rule comes first on a
+   phone, where it matters most. */
+@media (max-width: 640px) {
+  .gov-bar-points {
+    grid-template-columns: 1fr;
+  }
+}
+
+.gov-bar-point {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0 12px;
+}
+
+.gov-bar-point > svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--text-muted);
+}
+
+.gov-bar-point h2 {
+  margin: 0 0 4px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+.gov-bar-point p {
+  margin: 0 0 6px;
+  line-height: 1.5;
+}
+
+.gov-bar-point p:last-child {
+  margin-bottom: 0;
+}
+
+/* ── Update prompt bar ───────────────────────────────────────────────────────── */
+/* See update-bar-spec.md. Drawn by sw-register.js when a new worker is
+   waiting; sits directly below the official bar and above the header. */
+.update-notice {
+  background: color-mix(in srgb, var(--brand-dark) 12%, transparent);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: 0.875rem;
+}
+
+.update-notice-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0.5rem 20px;
+}
+
+/* Only the topmost bar wears the safe area; when the official bar is above,
+   this one does not need it. */
+.update-notice:first-child .update-notice-inner {
+  padding-top: max(0.5rem, env(safe-area-inset-top));
+}
+
+.update-notice p {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+.update-notice .btn {
+  flex: none;
 }
 
 /* ── Topbar ──────────────────────────────────────────────────────────────────── */
@@ -404,7 +617,6 @@ textarea {
   gap: 7px;
   padding: 9px 18px;
   border-radius: var(--radius-sm);
-  font-family: var(--font);
   font-size: 0.9rem;
   transition: filter var(--transition), opacity var(--transition), transform var(--transition);
   white-space: nowrap;
@@ -817,7 +1029,6 @@ textarea:focus {
   border-radius: var(--radius-sm);
   background: var(--surface-2);
   color: var(--text);
-  font-family: var(--font);
   font-size: 0.88rem;
   transition: background var(--transition), color var(--transition);
 }
@@ -835,6 +1046,22 @@ textarea:focus {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--text) 50%, transparent);
 }
 
+/* Time based mode. Light and dark stay side by side and the third spans the
+   row beneath them: three equal columns put the longer label in a box too
+   narrow to read at 320px, and the full width row also says visually that
+   this one is a different kind of choice, a rule for picking a mode rather
+   than a mode. */
+.mode-btn-wide {
+  grid-column: 1 / -1;
+}
+
+.mode-note {
+  margin: -10px 0 18px;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
 .theme-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -849,7 +1076,6 @@ textarea:focus {
   transition: border-color var(--transition), box-shadow var(--transition);
   background: none;
   text-align: left;
-  font-family: var(--font);
   color: var(--text);
 }
 
@@ -1265,7 +1491,6 @@ textarea:focus {
   background: none;
   width: 100%;
   text-align: left;
-  font-family: var(--font);
 }
 
 .sidebar-item:hover {

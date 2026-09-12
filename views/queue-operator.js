@@ -76,7 +76,7 @@ function buildOperatorHTML(queue, serving, waiting, missed, completed, can_opera
           </button>
 
           <div style="display:flex;align-items:center;gap:6px;">
-            <select id="batch-count" class="btn-ghost" style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);font-family:var(--font);font-size:0.88rem;">
+            <select id="batch-count" class="btn-ghost" style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);font-size:0.88rem;">
               ${[2,3,4,5,10].map(n => `<option value="${n}">${n}</option>`).join('')}
             </select>
             <button class="btn btn-ghost btn-sm" id="call-batch-btn" ${queue.status !== 'open' ? 'disabled' : ''}>Call Batch</button>
