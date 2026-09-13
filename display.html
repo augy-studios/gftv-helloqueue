@@ -161,14 +161,10 @@
 
         <script type="module">
             import { initTheme, Icons } from '/script.js';
-            import { initGuestKey, signedFetch } from '/lib/gftv-request-signing.js';
             import { buildOfficialBar } from '/official-bar.js';
     initTheme();
     buildOfficialBar();
 
-    // Type B page: initialise guest signing key before polling /api/display
-    try { await initGuestKey('helloqueue-display'); } catch (e) { console.warn('Guest key init failed:', e.message); }
- 
     const parts = window.location.pathname.split('/').filter(Boolean);
     const eventCode = parts[1];
     const queueCode = parts[2];
@@ -192,7 +188,7 @@
  
       async function refresh() {
         try {
-          const res = await signedFetch(`/api/display/${eventCode}/${queueCode}`);
+          const res = await fetch(`/api/display/${eventCode}/${queueCode}`);
           if (!res.ok) throw new Error('Queue not found');
           const data = await res.json();
           render(data);

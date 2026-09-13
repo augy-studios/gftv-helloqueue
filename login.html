@@ -130,19 +130,13 @@
 
     <script type="module">
         import { initTheme, buildTopbar, saveAuth, getToken, api, toast } from '/script.js';
-        import { initGuestKey, storeSigningKey } from '/lib/gftv-request-signing.js';
         import { buildOfficialBar } from '/official-bar.js';
 
     initTheme();
     buildOfficialBar();
     buildTopbar(document.getElementById('topbar-root'));
 
-    if (getToken()) {
-        window.location.href = '/dashboard';
-    } else {
-        // Guest key is needed to sign /api/auth/totp-verify (and is ignored by exempt /api/auth/login)
-        try { await initGuestKey('helloqueue-login'); } catch (e) { console.warn('Guest key init failed:', e.message); }
-    }
+    if (getToken()) window.location.href = '/dashboard';
 
     const form = document.getElementById('login-form');
     const errEl = document.getElementById('login-error');
@@ -229,8 +223,6 @@
         if (data.device_token) {
           localStorage.setItem('hq_device_token', data.device_token);
         }
-        // Session is stored in localStorage (persists across browser close) → persistent=true
-        storeSigningKey(data.signing_key, data.key_id, true);
         saveAuth(data.token, data.user);
         window.location.href = '/dashboard';
       } catch (err) {
@@ -267,8 +259,6 @@
           return;
         }
 
-        // Session is stored in localStorage (persists across browser close) → persistent=true
-        storeSigningKey(data.signing_key, data.key_id, true);
         saveAuth(data.token, data.user);
         window.location.href = '/dashboard';
       } catch (err) {
