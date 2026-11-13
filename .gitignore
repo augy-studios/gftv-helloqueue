@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Environment files: never commit real values. The example file stays tracked.
+.env
+.env.*
+!.env.example
+
+# Vercel CLI
+.vercel/
+
+# Agent worktrees
+.claude/worktrees/
+
+# Playwright output
+test-results/
+playwright-report/
