@@ -7,7 +7,7 @@
 // except in its 'skip-waiting' message handler, and that message is only ever
 // posted from this file.
 
-const SW_URL = '/sw.js';
+const SERVICE_WORKER_URL = '/sw.js';
 
 const COPY = {
     label: 'Update',
@@ -22,21 +22,29 @@ let reloading = false;
 // For this page view only, and never stored. "Not now" means not now.
 let dismissed = false;
 
-function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({
+function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, (character) => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-    }[c]));
+    }[character]));
 }
 
+// Shows the update bar while a new worker is waiting and nobody has pressed
+// "Not now", and removes it otherwise. It reuses the bar already on the page,
+// if there is one.
 function render() {
     const existing = document.querySelector('.update-notice');
 
     if (!waitingWorker || dismissed) {
-        existing?.remove();
+        if (existing) {
+            existing.remove();
+        }
         return;
     }
 
-    const bar = existing ?? document.createElement('div');
+    let bar = existing;
+    if (existing === null || existing === undefined) {
+        bar = document.createElement('div');
+    }
     bar.className = 'update-notice';
     // Nothing is wrong, so status rather than alert: an alert interrupts a
     // screen reader mid-sentence to say a website is slightly newer.
@@ -57,7 +65,9 @@ function render() {
     bar.querySelector('[data-sw-update]').addEventListener('click', () => {
         // The only place anything asks for skipWaiting. The reload happens on
         // controllerchange, not here.
-        waitingWorker?.postMessage('skip-waiting');
+        if (waitingWorker) {
+            waitingWorker.postMessage('skip-waiting');
+        }
     });
 
     bar.querySelector('[data-sw-later]').addEventListener('click', () => {
@@ -68,14 +78,20 @@ function render() {
     if (!existing) {
         // Directly below the official bar when it is present: that one is
         // always the topmost thing on the page. Otherwise the very top.
-        const official = document.getElementById('officialBar');
-        if (official) official.after(bar);
-        else document.body.prepend(bar);
+        const officialBar = document.getElementById('officialBar');
+        if (officialBar) {
+            officialBar.after(bar);
+        } else {
+            document.body.prepend(bar);
+        }
     }
 }
 
+// Notices a new worker that's waiting, now or later, and shows the bar for it.
 function watchForUpdate() {
-    if (!registration) return;
+    if (!registration) {
+        return;
+    }
 
     // A worker already waiting when the page opened. This is the ordinary case
     // on the second page view after a deploy; without it the prompt would only
@@ -88,27 +104,37 @@ function watchForUpdate() {
 
     registration.addEventListener('updatefound', () => {
         const installing = registration.installing;
-        if (!installing) return;
+        if (!installing) {
+            return;
+        }
 
         installing.addEventListener('statechange', () => {
             // `installed` with a controller present means an update. With no
             // controller it is a first install, and there is no previous
             // version on screen to protect.
             if (installing.state === 'installed' && navigator.serviceWorker.controller) {
-                waitingWorker = registration.waiting ?? installing;
+                let newWorker = registration.waiting;
+                if (newWorker === null || newWorker === undefined) {
+                    newWorker = installing;
+                }
+                waitingWorker = newWorker;
                 render();
             }
         });
     });
 }
 
+// Registers sw.js, then watches for updates. Reloads the page once the new
+// worker has taken over.
 function registerWorker() {
-    if (!('serviceWorker' in navigator)) return;
+    if (!('serviceWorker' in navigator)) {
+        return;
+    }
 
     navigator.serviceWorker
-        .register(SW_URL)
-        .then((reg) => {
-            registration = reg;
+        .register(SERVICE_WORKER_URL)
+        .then((newRegistration) => {
+            registration = newRegistration;
             watchForUpdate();
         })
         .catch((cause) => {
@@ -122,7 +148,9 @@ function registerWorker() {
     // new worker and not the one being replaced. The flag guards against
     // controllerchange firing more than once.
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (reloading) return;
+        if (reloading) {
+            return;
+        }
         reloading = true;
         window.location.reload();
     });
@@ -131,5 +159,8 @@ function registerWorker() {
 // Registration on `load`, not immediately: installing fetches everything the
 // worker precaches, and starting that while the page is still fetching its own
 // assets makes a first visit slower for no gain.
-if (document.readyState === 'complete') registerWorker();
-else window.addEventListener('load', registerWorker, { once: true });
+if (document.readyState === 'complete') {
+    registerWorker();
+} else {
+    window.addEventListener('load', registerWorker, { once: true });
+}

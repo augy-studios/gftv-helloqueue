@@ -33,24 +33,39 @@
         // Pre-paint: land both theme axes before first paint, so every colour
         // block can select on both without an attribute-missing fallback.
         (function () {
-            var k = "gftv-helloqueue";
-            var m = localStorage.getItem(k + ".mode") || "light";
+            var appKey = "gftv-helloqueue";
+
+            // The stored preference: "light", "dark" or "time". Light when
+            // nothing is stored.
+            var mode = "light";
+            var storedMode = localStorage.getItem(appKey + ".mode");
+            if (storedMode) {
+                mode = storedMode;
+            }
 
             // Time based mode. Resolved here rather than in script.js because
             // that module runs after first paint, and an evening reader would
             // otherwise watch a light page turn dark. Keep the two hours in
             // step with LIGHT_FROM_HOUR and LIGHT_UNTIL_HOUR in script.js.
-            if (m === "time") {
-                var h = new Date().getHours();
-                m = h >= 9 && h < 18 ? "light" : "dark";
+            if (mode === "time") {
+                var currentHour = new Date().getHours();
+                if (currentHour >= 9 && currentHour < 18) {
+                    mode = "light";
+                } else {
+                    mode = "dark";
+                }
                 document.documentElement.setAttribute("data-mode-preference", "time");
-            } else if (m !== "dark") {
-                m = "light";
+            } else if (mode !== "dark") {
+                mode = "light";
             }
 
-            var c = localStorage.getItem(k + ".colorTheme") || "classic";
-            document.documentElement.setAttribute("data-mode", m);
-            document.documentElement.setAttribute("data-color-theme", c);
+            var colorTheme = "classic";
+            var storedColorTheme = localStorage.getItem(appKey + ".colorTheme");
+            if (storedColorTheme) {
+                colorTheme = storedColorTheme;
+            }
+            document.documentElement.setAttribute("data-mode", mode);
+            document.documentElement.setAttribute("data-color-theme", colorTheme);
         })();
     </script>
     <link rel="stylesheet" href="/style.css">
@@ -160,212 +175,335 @@
         </div>
 
         <script type="module">
-            import { initTheme, Icons } from '/script.js';
+            import { initTheme, Icons, escapeHtml } from '/script.js';
             import { buildOfficialBar } from '/official-bar.js';
-    initTheme();
-    buildOfficialBar();
 
-    const parts = window.location.pathname.split('/').filter(Boolean);
-    const eventCode = parts[1];
-    const queueCode = parts[2];
- 
-    if (!eventCode || !queueCode) {
-      document.getElementById('display-root').innerHTML = `
-        <div style="display:flex;align-items:center;justify-content:center;min-height:60vh;font-size:1.2rem;color:var(--text-muted);">
-          Invalid display URL.
-        </div>`;
-    } else {
-      let prevServing = [];
-      let joinQR = null;
- 
-      generateJoinQR(`https://queue.gftv.asia/queue/${eventCode}/${queueCode}`).then(url => {
-        joinQR = url;
-      });
- 
-      async function generateJoinQR(url) {
-        return `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(url)}`;
-      }
- 
-      async function refresh() {
-        try {
-          const res = await fetch(`/api/display/${eventCode}/${queueCode}`);
-          if (!res.ok) throw new Error('Queue not found');
-          const data = await res.json();
-          render(data);
-        } catch (err) {
-          document.getElementById('display-root').innerHTML = `
-            <div style="display:flex;align-items:center;justify-content:center;min-height:60vh;">
-              <div class="text-muted" style="text-align:center;">
-                <div style="margin:8px 0;"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
-                <div style="margin-top:10px;">${err.message}</div>
-                <div class="text-sm" style="margin-top:6px;">Retrying…</div>
-              </div>
-            </div>`;
-        }
-      }
- 
-      function render(data) {
-        const serving = data.serving || [];
-        const serving_entries = data.serving_entries || [];
-        const waiting = data.waiting || [];
-        const missed  = data.missed  || [];
-        const newlyServed = serving.filter(n => !prevServing.includes(n));
-        prevServing = [...serving];
- 
-        const root = document.getElementById('display-root');
- 
-        // skip rebuild if already rendered
-        const existingMain = document.getElementById('display-main');
-        if (existingMain) {
-          updateDisplay(data, serving, waiting, missed, newlyServed);
-          return;
-        }
- 
-        root.innerHTML = `
-          <div class="display-main" id="display-main">
-            <div class="display-header">
-              <h1>${data.event?.name || 'Event'}</h1>
-              <p>${data.queue?.name || 'Queue'} &nbsp;·&nbsp;
-                <span class="status-pill ${data.queue?.status}">${data.queue?.status}</span>
-              </p>
-            </div>
- 
-            <div class="serving-block">
-              <div class="now-serving-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg> Now Serving</div>
-              <div id="serving-numbers" class="serving-numbers">
-                ${renderServingNumbers(serving, serving_entries)}
-              </div>
-            </div>
- 
-            <div>
-              <div class="display-section-title"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg> In Queue (${waiting.length})</div>
-              <div id="waiting-numbers" class="waiting-row">
-                ${waiting.map(n => `<div class="waiting-badge">${n}</div>`).join('') || '<span class="text-muted text-sm">Queue is empty</span>'}
-              </div>
-            </div>
- 
-            ${missed.length ? `
-            <div>
-              <div class="display-section-title"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Missed (${missed.length})</div>
-              <div id="missed-numbers" class="missed-row">
-                ${missed.map(n => `<div class="missed-badge">${n}</div>`).join('')}
-              </div>
-            </div>` : '<div id="missed-numbers"></div>'}
-          </div>
- 
-          <!-- SIDEBAR -->
-          <div class="display-sidebar">
-            <div style="text-align:center;">
-              <div style="font-size:1.5rem;">${data.event?.name || ''}</div>
-              <div class="text-sm text-muted">${data.queue?.name || ''}</div>
-            </div>
- 
-            <div class="display-stats">
-              <div class="display-stat">
-                <div class="display-stat-num" style="color:var(--status-serving);">${serving.length}</div>
-                <div class="display-stat-label">Serving</div>
-              </div>
-              <div class="display-stat">
-                <div class="display-stat-num" style="color:var(--status-waiting);">${waiting.length}</div>
-                <div class="display-stat-label">Waiting</div>
-              </div>
-              <div class="display-stat">
-                <div class="display-stat-num">${data.total_served || 0}</div>
-                <div class="display-stat-label">Served</div>
-              </div>
-              <div class="display-stat">
-                <div class="display-stat-num" style="color:var(--status-missed);">${missed.length}</div>
-                <div class="display-stat-label">Missed</div>
-              </div>
-            </div>
- 
-            <div style="text-align:center;">
-              <div class="display-section-title">Est. Wait Time</div>
-              <div class="display-wait-time pulse">${data.est_wait_minutes || 0} min</div>
-            </div>
- 
-            <div>
-              <div class="display-section-title">Join Queue</div>
-              <div class="display-qr-wrap">
-                <img id="join-qr" src="${joinQR || `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(data.join_url)}`}" alt="Join QR" />
-              </div>
-              <div class="text-sm text-muted" style="margin-top:8px;">Scan to join</div>
-            </div>
- 
-            <div class="text-sm text-muted" id="last-updated" style="font-size:0.72rem;">
-              Updated ${new Date().toLocaleTimeString()}
-            </div>
-          </div>
-        `;
-      }
- 
-      function renderServingNumbers(serving, serving_entries) {
-        if (!serving.length) return '<div class="text-muted text-sm">No one being served yet</div>';
-        const entriesMap = Object.fromEntries((serving_entries || []).map(e => [e.queue_number, e]));
-        return serving.map(n => {
-          const entry = entriesMap[n];
-          const isIn = !!entry?.entered_at;
-          const badge = isIn
-            ? `<span style="font-size:0.55rem;background:var(--chip-on-fill);border-radius:4px;padding:2px 5px;display:block;margin-top:4px;letter-spacing:0.05em;">IN</span>`
-            : `<span style="font-size:0.55rem;background:var(--chip-on-fill-weak);border-radius:4px;padding:2px 5px;display:block;margin-top:4px;letter-spacing:0.05em;">OUT</span>`;
-          const bgStyle = isIn ? 'background:var(--status-serving);' : '';
-          return `<div class="serving-number-big" style="display:flex;flex-direction:column;align-items:center;${bgStyle}">${n}${badge}</div>`;
-        }).join('');
-      }
- 
-      function updateDisplay(data, serving, waiting, missed, newlyServed) {
-        const serving_entries = data.serving_entries || [];
-        const servingEl = document.getElementById('serving-numbers');
-        const waitingEl = document.getElementById('waiting-numbers');
-        const missedEl  = document.getElementById('missed-numbers');
+            initTheme();
+            buildOfficialBar();
 
-        if (servingEl) {
-          if (!serving.length) {
-            servingEl.innerHTML = '<div class="text-muted text-sm">No one being served yet</div>';
-          } else {
-            const entriesMap = Object.fromEntries(serving_entries.map(e => [e.queue_number, e]));
-            servingEl.innerHTML = serving.map(n => {
-              const entry = entriesMap[n];
-              const isIn = !!entry?.entered_at;
-              const badge = isIn
-                ? `<span style="font-size:0.55rem;background:var(--chip-on-fill);border-radius:4px;padding:2px 5px;display:block;margin-top:4px;letter-spacing:0.05em;">IN</span>`
-                : `<span style="font-size:0.55rem;background:var(--chip-on-fill-weak);border-radius:4px;padding:2px 5px;display:block;margin-top:4px;letter-spacing:0.05em;">OUT</span>`;
-              const bgStyle = isIn ? 'background:var(--status-serving);' : '';
-              return `<div class="serving-number-big ${newlyServed.includes(n) ? 'pop-in' : ''}" style="display:flex;flex-direction:column;align-items:center;${bgStyle}">${n}${badge}</div>`;
-            }).join('');
-          }
-        }
- 
-        if (waitingEl) {
-          waitingEl.innerHTML = waiting.length
-            ? waiting.map(n => `<div class="waiting-badge">${n}</div>`).join('')
-            : '<span class="text-muted text-sm">Queue is empty</span>';
-        }
- 
-        if (missedEl) {
-          missedEl.innerHTML = missed.length
-            ? `<div class="display-section-title" style="margin-top:16px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Missed (${missed.length})</div><div class="missed-row">${missed.map(n => `<div class="missed-badge">${n}</div>`).join('')}</div>`
-            : '';
-        }
- 
-        // Update stats
-        const stats = document.querySelectorAll('.display-stat-num');
-        if (stats[0]) stats[0].textContent = serving.length;
-        if (stats[1]) stats[1].textContent = waiting.length;
-        if (stats[2]) stats[2].textContent = data.total_served || 0;
-        if (stats[3]) stats[3].textContent = missed.length;
- 
-        const waitEl = document.querySelector('.display-wait-time');
-        if (waitEl) waitEl.textContent = `${data.est_wait_minutes || 0} min`;
- 
-        const tsEl = document.getElementById('last-updated');
-        if (tsEl) tsEl.textContent = `Updated ${new Date().toLocaleTimeString()}`;
-      }
- 
-      refresh();
-      setInterval(refresh, 5000);
-    }
-  </script>
+            // The page's address is /display/<eventCode>/<queueCode>.
+            const pathParts = window.location.pathname.split('/').filter(Boolean);
+            const eventCode = pathParts[1];
+            const queueCode = pathParts[2];
+
+            if (!eventCode || !queueCode) {
+                document.getElementById('display-root').innerHTML = `
+                    <div style="display:flex;align-items:center;justify-content:center;min-height:60vh;font-size:1.2rem;color:var(--text-muted);">
+                        Invalid display URL.
+                    </div>`;
+            } else {
+                // The numbers being served at the last refresh, to spot the
+                // newly called ones.
+                let previousServing = [];
+                let joinQR = null;
+
+                generateJoinQR(`https://queue.gftv.asia/queue/${eventCode}/${queueCode}`).then((qrImageUrl) => {
+                    joinQR = qrImageUrl;
+                });
+
+                async function generateJoinQR(url) {
+                    return `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(url)}`;
+                }
+
+                async function refresh() {
+                    try {
+                        const response = await fetch(`/api/display/${eventCode}/${queueCode}`);
+                        if (!response.ok) {
+                            throw new Error('Queue not found');
+                        }
+                        const data = await response.json();
+                        render(data);
+                    } catch (error) {
+                        document.getElementById('display-root').innerHTML = `
+                            <div style="display:flex;align-items:center;justify-content:center;min-height:60vh;">
+                                <div class="text-muted" style="text-align:center;">
+                                    <div style="margin:8px 0;"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
+                                    <div style="margin-top:10px;">${escapeHtml(error.message)}</div>
+                                    <div class="text-sm" style="margin-top:6px;">Retrying…</div>
+                                </div>
+                            </div>`;
+                    }
+                }
+
+                // Draws the whole board the first time. Every later refresh
+                // only updates the numbers and stats in place (updateDisplay).
+                function render(data) {
+                    let serving = [];
+                    if (data.serving) {
+                        serving = data.serving;
+                    }
+                    let servingEntries = [];
+                    if (data.serving_entries) {
+                        servingEntries = data.serving_entries;
+                    }
+                    let waiting = [];
+                    if (data.waiting) {
+                        waiting = data.waiting;
+                    }
+                    let missed = [];
+                    if (data.missed) {
+                        missed = data.missed;
+                    }
+                    const newlyServed = serving.filter((queueNumber) => !previousServing.includes(queueNumber));
+                    previousServing = [...serving];
+
+                    const root = document.getElementById('display-root');
+
+                    // skip rebuild if already rendered
+                    const existingMain = document.getElementById('display-main');
+                    if (existingMain) {
+                        updateDisplay(data, serving, waiting, missed, newlyServed);
+                        return;
+                    }
+
+                    // The event and queue names. The header says "Event" and
+                    // "Queue" when a name is missing; the sidebar leaves it blank.
+                    let eventName = '';
+                    if (data.event && data.event.name) {
+                        eventName = data.event.name;
+                    }
+                    let queueName = '';
+                    if (data.queue && data.queue.name) {
+                        queueName = data.queue.name;
+                    }
+                    let headerEventName = 'Event';
+                    if (eventName) {
+                        headerEventName = eventName;
+                    }
+                    let headerQueueName = 'Queue';
+                    if (queueName) {
+                        headerQueueName = queueName;
+                    }
+                    let queueStatus;
+                    if (data.queue) {
+                        queueStatus = data.queue.status;
+                    }
+
+                    let waitingBadges = waiting.map((queueNumber) => `<div class="waiting-badge">${queueNumber}</div>`).join('');
+                    if (!waitingBadges) {
+                        waitingBadges = '<span class="text-muted text-sm">Queue is empty</span>';
+                    }
+
+                    // The Missed section, or an empty placeholder that
+                    // updateDisplay fills once a number is missed.
+                    let missedSection = '<div id="missed-numbers"></div>';
+                    if (missed.length) {
+                        missedSection = `
+                    <div>
+                        <div class="display-section-title"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Missed (${missed.length})</div>
+                        <div id="missed-numbers" class="missed-row">
+                            ${missed.map((queueNumber) => `<div class="missed-badge">${queueNumber}</div>`).join('')}
+                        </div>
+                    </div>`;
+                    }
+
+                    let totalServed = 0;
+                    if (data.total_served) {
+                        totalServed = data.total_served;
+                    }
+                    let estimatedWaitMinutes = 0;
+                    if (data.est_wait_minutes) {
+                        estimatedWaitMinutes = data.est_wait_minutes;
+                    }
+
+                    // The join QR image: the one made at start-up, or one made
+                    // from the API's join_url until that's ready.
+                    let joinQrSource = joinQR;
+                    if (!joinQR) {
+                        joinQrSource = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(data.join_url)}`;
+                    }
+
+                    root.innerHTML = `
+                <div class="display-main" id="display-main">
+                    <div class="display-header">
+                        <h1>${escapeHtml(headerEventName)}</h1>
+                        <p>${escapeHtml(headerQueueName)} &nbsp;·&nbsp;
+                            <span class="status-pill ${escapeHtml(queueStatus)}">${escapeHtml(queueStatus)}</span>
+                        </p>
+                    </div>
+
+                    <div class="serving-block">
+                        <div class="now-serving-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg> Now Serving</div>
+                        <div id="serving-numbers" class="serving-numbers">
+                            ${renderServingNumbers(serving, servingEntries)}
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="display-section-title"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg> In Queue (${waiting.length})</div>
+                        <div id="waiting-numbers" class="waiting-row">
+                            ${waitingBadges}
+                        </div>
+                    </div>
+
+                    ${missedSection}
+                </div>
+
+                <!-- SIDEBAR -->
+                <div class="display-sidebar">
+                    <div style="text-align:center;">
+                        <div style="font-size:1.5rem;">${escapeHtml(eventName)}</div>
+                        <div class="text-sm text-muted">${escapeHtml(queueName)}</div>
+                    </div>
+
+                    <div class="display-stats">
+                        <div class="display-stat">
+                            <div class="display-stat-num" style="color:var(--status-serving);">${serving.length}</div>
+                            <div class="display-stat-label">Serving</div>
+                        </div>
+                        <div class="display-stat">
+                            <div class="display-stat-num" style="color:var(--status-waiting);">${waiting.length}</div>
+                            <div class="display-stat-label">Waiting</div>
+                        </div>
+                        <div class="display-stat">
+                            <div class="display-stat-num">${totalServed}</div>
+                            <div class="display-stat-label">Served</div>
+                        </div>
+                        <div class="display-stat">
+                            <div class="display-stat-num" style="color:var(--status-missed);">${missed.length}</div>
+                            <div class="display-stat-label">Missed</div>
+                        </div>
+                    </div>
+
+                    <div style="text-align:center;">
+                        <div class="display-section-title">Est. Wait Time</div>
+                        <div class="display-wait-time pulse">${estimatedWaitMinutes} min</div>
+                    </div>
+
+                    <div>
+                        <div class="display-section-title">Join Queue</div>
+                        <div class="display-qr-wrap">
+                            <img id="join-qr" src="${escapeHtml(joinQrSource)}" alt="Join QR" />
+                        </div>
+                        <div class="text-sm text-muted" style="margin-top:8px;">Scan to join</div>
+                    </div>
+
+                    <div class="text-sm text-muted" id="last-updated" style="font-size:0.72rem;">
+                        Updated ${new Date().toLocaleTimeString()}
+                    </div>
+                </div>
+            `;
+                }
+
+                // The "Now Serving" cards: each number, marked IN once that
+                // attendee has been scanned in, and OUT until then.
+                function renderServingNumbers(serving, servingEntries) {
+                    if (!serving.length) {
+                        return '<div class="text-muted text-sm">No one being served yet</div>';
+                    }
+                    let entries = [];
+                    if (servingEntries) {
+                        entries = servingEntries;
+                    }
+                    const entriesByNumber = Object.fromEntries(entries.map((entry) => [entry.queue_number, entry]));
+                    return serving.map((queueNumber) => {
+                        const entry = entriesByNumber[queueNumber];
+                        let hasEntered = false;
+                        if (entry && entry.entered_at) {
+                            hasEntered = true;
+                        }
+                        let badge = `<span style="font-size:0.55rem;background:var(--chip-on-fill-weak);border-radius:4px;padding:2px 5px;display:block;margin-top:4px;letter-spacing:0.05em;">OUT</span>`;
+                        let backgroundStyle = '';
+                        if (hasEntered) {
+                            badge = `<span style="font-size:0.55rem;background:var(--chip-on-fill);border-radius:4px;padding:2px 5px;display:block;margin-top:4px;letter-spacing:0.05em;">IN</span>`;
+                            backgroundStyle = 'background:var(--status-serving);';
+                        }
+                        return `<div class="serving-number-big" style="display:flex;flex-direction:column;align-items:center;${backgroundStyle}">${queueNumber}${badge}</div>`;
+                    }).join('');
+                }
+
+                // A later refresh: updates the numbers, the stats, the wait time
+                // and the "Updated" time in place, without redrawing the board.
+                // Newly called numbers get the pop-in animation.
+                function updateDisplay(data, serving, waiting, missed, newlyServed) {
+                    let servingEntries = [];
+                    if (data.serving_entries) {
+                        servingEntries = data.serving_entries;
+                    }
+                    const servingElement = document.getElementById('serving-numbers');
+                    const waitingElement = document.getElementById('waiting-numbers');
+                    const missedElement = document.getElementById('missed-numbers');
+
+                    if (servingElement) {
+                        if (!serving.length) {
+                            servingElement.innerHTML = '<div class="text-muted text-sm">No one being served yet</div>';
+                        } else {
+                            const entriesByNumber = Object.fromEntries(servingEntries.map((entry) => [entry.queue_number, entry]));
+                            servingElement.innerHTML = serving.map((queueNumber) => {
+                                const entry = entriesByNumber[queueNumber];
+                                let hasEntered = false;
+                                if (entry && entry.entered_at) {
+                                    hasEntered = true;
+                                }
+                                let badge = `<span style="font-size:0.55rem;background:var(--chip-on-fill-weak);border-radius:4px;padding:2px 5px;display:block;margin-top:4px;letter-spacing:0.05em;">OUT</span>`;
+                                let backgroundStyle = '';
+                                if (hasEntered) {
+                                    badge = `<span style="font-size:0.55rem;background:var(--chip-on-fill);border-radius:4px;padding:2px 5px;display:block;margin-top:4px;letter-spacing:0.05em;">IN</span>`;
+                                    backgroundStyle = 'background:var(--status-serving);';
+                                }
+                                let popInClass = '';
+                                if (newlyServed.includes(queueNumber)) {
+                                    popInClass = 'pop-in';
+                                }
+                                return `<div class="serving-number-big ${popInClass}" style="display:flex;flex-direction:column;align-items:center;${backgroundStyle}">${queueNumber}${badge}</div>`;
+                            }).join('');
+                        }
+                    }
+
+                    if (waitingElement) {
+                        if (waiting.length) {
+                            waitingElement.innerHTML = waiting.map((queueNumber) => `<div class="waiting-badge">${queueNumber}</div>`).join('');
+                        } else {
+                            waitingElement.innerHTML = '<span class="text-muted text-sm">Queue is empty</span>';
+                        }
+                    }
+
+                    if (missedElement) {
+                        if (missed.length) {
+                            missedElement.innerHTML = `<div class="display-section-title" style="margin-top:16px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Missed (${missed.length})</div><div class="missed-row">${missed.map((queueNumber) => `<div class="missed-badge">${queueNumber}</div>`).join('')}</div>`;
+                        } else {
+                            missedElement.innerHTML = '';
+                        }
+                    }
+
+                    // Update stats
+                    const statNumbers = document.querySelectorAll('.display-stat-num');
+                    if (statNumbers[0]) {
+                        statNumbers[0].textContent = serving.length;
+                    }
+                    if (statNumbers[1]) {
+                        statNumbers[1].textContent = waiting.length;
+                    }
+                    if (statNumbers[2]) {
+                        let totalServed = 0;
+                        if (data.total_served) {
+                            totalServed = data.total_served;
+                        }
+                        statNumbers[2].textContent = totalServed;
+                    }
+                    if (statNumbers[3]) {
+                        statNumbers[3].textContent = missed.length;
+                    }
+
+                    const waitTimeElement = document.querySelector('.display-wait-time');
+                    if (waitTimeElement) {
+                        let estimatedWaitMinutes = 0;
+                        if (data.est_wait_minutes) {
+                            estimatedWaitMinutes = data.est_wait_minutes;
+                        }
+                        waitTimeElement.textContent = `${estimatedWaitMinutes} min`;
+                    }
+
+                    const lastUpdatedElement = document.getElementById('last-updated');
+                    if (lastUpdatedElement) {
+                        lastUpdatedElement.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+                    }
+                }
+
+                refresh();
+                setInterval(refresh, 5000);
+            }
+        </script>
 
 
         <script type="module" src="/sw-register.js"></script>

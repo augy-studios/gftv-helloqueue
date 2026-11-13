@@ -1,23 +1,37 @@
 import {
     api,
     toast,
-    Icons
+    Icons,
+    escapeHtml
 } from '/script.js';
 
+// The Profile page: the account details, and the Telegram box below them.
 export async function renderProfileView(container, {
     user
 }) {
+    let email = '-';
+    if (user.email) {
+        email = user.email;
+    }
+
+    let roleName = 'Approved User';
+    if (user.is_admin) {
+        roleName = 'Admin';
+    } else if (user.is_editor) {
+        roleName = 'Editor';
+    }
+
     container.innerHTML = `
     <div class="page-title">Profile</div>
     <div style="max-width:520px;">
       <div class="glass-card" style="padding:22px;margin-bottom:16px;">
         <div class="section-label">Account</div>
-        <div class="info-row"><span class="info-row-label">Display Name</span><span>${user.display_name}</span></div>
-        <div class="info-row"><span class="info-row-label">Username</span><span>@${user.username}</span></div>
-        <div class="info-row"><span class="info-row-label">Email</span><span>${user.email || '-'}</span></div>
+        <div class="info-row"><span class="info-row-label">Display Name</span><span>${escapeHtml(user.display_name)}</span></div>
+        <div class="info-row"><span class="info-row-label">Username</span><span>@${escapeHtml(user.username)}</span></div>
+        <div class="info-row"><span class="info-row-label">Email</span><span>${escapeHtml(email)}</span></div>
         <div class="info-row">
           <span class="info-row-label">Role</span>
-          <span>${user.is_admin ? 'Admin' : user.is_editor ? 'Editor' : 'Approved User'}</span>
+          <span>${roleName}</span>
         </div>
       </div>
 
@@ -31,40 +45,70 @@ export async function renderProfileView(container, {
     await loadTelegramStatus(user);
 }
 
+// Fills the Telegram box: linked accounts get Unlink, others get a link code.
 async function loadTelegramStatus(user) {
-    const tgContent = document.getElementById('tg-content');
-    if (!tgContent) return;
+    const telegramContent = document.getElementById('tg-content');
+    if (!telegramContent) {
+        return;
+    }
 
     try {
         const {
-            user: me
+            user: account
         } = await api('/auth/me');
 
-        if (me.telegram_linked) {
-            tgContent.innerHTML = `
+        if (account.telegram_linked) {
+            showLinkedTelegram(telegramContent, account, user);
+        } else {
+            showUnlinkedTelegram(telegramContent, user);
+        }
+    } catch {
+        telegramContent.innerHTML = `<div class="empty-state">Failed to load Telegram status</div>`;
+    }
+}
+
+// Linked: the @username, when it was linked, and Unlink (after a confirm).
+function showLinkedTelegram(telegramContent, account, user) {
+    let telegramUsername = 'unknown';
+    if (account.telegram_username) {
+        telegramUsername = account.telegram_username;
+    }
+
+    telegramContent.innerHTML = `
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
           <span class="status-pill open">Linked</span>
-          <span class="text-sm">@${me.telegram_username || 'unknown'}</span>
+          <span class="text-sm">@${escapeHtml(telegramUsername)}</span>
         </div>
-        <div class="text-sm text-muted mt-1">Linked on ${new Date(me.telegram_linked_at).toLocaleDateString()}</div>
+        <div class="text-sm text-muted mt-1">Linked on ${new Date(account.telegram_linked_at).toLocaleDateString()}</div>
         <div class="text-sm text-muted mt-1">Notifications are sent to your Telegram via @GFTVHelloQueueBot.</div>
         <button class="btn btn-danger btn-sm mt-2" id="unlink-tg-btn">${Icons.x} Unlink Telegram</button>
       `;
 
-            document.getElementById('unlink-tg-btn')?.addEventListener('click', async () => {
-                if (!confirm('Unlink your Telegram account from HelloQueue?')) return;
-                try {
-                    await api('/user/telegram-link', {
-                        method: 'DELETE'
-                    });
-                    toast('Telegram unlinked', 'info');
-                    loadTelegramStatus(user);
-                } catch (err) {
-                    toast(err.message, 'error');
-                }
+    const unlinkButton = document.getElementById('unlink-tg-btn');
+    if (!unlinkButton) {
+        return;
+    }
+    unlinkButton.addEventListener('click', async () => {
+        if (!confirm('Unlink your Telegram account from HelloQueue?')) {
+            return;
+        }
+        try {
+            await api('/user/telegram-link', {
+                method: 'DELETE'
             });
-        } else {
-            tgContent.innerHTML = `
+            toast('Telegram unlinked', 'info');
+            loadTelegramStatus(user);
+        } catch (error) {
+            toast(error.message, 'error');
+        }
+    });
+}
+
+// Not linked: Generate Link Code asks for a one-time code to send to the
+// bot with /link, then checks every 3 seconds (for up to 10 minutes) whether
+// the account has been linked.
+function showUnlinkedTelegram(telegramContent, user) {
+    telegramContent.innerHTML = `
         <div class="text-sm text-muted" style="margin-bottom:14px;">
           Link your Telegram account to receive queue notifications and join queues via @GFTVHelloQueueBot.
         </div>
@@ -80,41 +124,45 @@ async function loadTelegramStatus(user) {
         </div>
       `;
 
-            const genOtp = async () => {
-                try {
-                    const data = await api('/user/telegram-link', {
-                        method: 'GET'
-                    });
-                    document.getElementById('otp-display').style.display = 'block';
-                    document.getElementById('gen-otp-btn').style.display = 'none';
-                    document.getElementById('otp-code').textContent = data.otp_code;
-                    document.getElementById('otp-inline').textContent = data.otp_code;
-                    const exp = new Date(data.expires_at);
-                    document.getElementById('otp-expires').textContent = `Expires at ${exp.toLocaleTimeString()}`;
+    // Asks the API for a new link code, shows it, and starts checking for
+    // the link. Generate new code runs it again.
+    const generateLinkCode = async () => {
+        try {
+            const data = await api('/user/telegram-link', {
+                method: 'GET'
+            });
+            document.getElementById('otp-display').style.display = 'block';
+            document.getElementById('gen-otp-btn').style.display = 'none';
+            document.getElementById('otp-code').textContent = data.otp_code;
+            document.getElementById('otp-inline').textContent = data.otp_code;
+            const expiresAt = new Date(data.expires_at);
+            document.getElementById('otp-expires').textContent = `Expires at ${expiresAt.toLocaleTimeString()}`;
 
-                    // Auto-poll to detect when linked
-                    let checkTimer = setInterval(async () => {
-                        const {
-                            user: refreshed
-                        } = await api('/auth/me').catch(() => ({
-                            user: null
-                        }));
-                        if (refreshed?.telegram_linked) {
-                            clearInterval(checkTimer);
-                            toast('Telegram linked!', 'success');
-                            loadTelegramStatus(user);
-                        }
-                    }, 3000);
-                    setTimeout(() => clearInterval(checkTimer), 10 * 60 * 1000);
-                } catch (err) {
-                    toast(err.message, 'error');
+            // Auto-poll to detect when linked
+            const linkCheckTimer = setInterval(async () => {
+                const {
+                    user: refreshedUser
+                } = await api('/auth/me').catch(() => ({
+                    user: null
+                }));
+                if (refreshedUser && refreshedUser.telegram_linked) {
+                    clearInterval(linkCheckTimer);
+                    toast('Telegram linked!', 'success');
+                    loadTelegramStatus(user);
                 }
-            };
-
-            document.getElementById('gen-otp-btn')?.addEventListener('click', genOtp);
-            document.getElementById('refresh-otp-btn')?.addEventListener('click', genOtp);
+            }, 3000);
+            setTimeout(() => clearInterval(linkCheckTimer), 10 * 60 * 1000);
+        } catch (error) {
+            toast(error.message, 'error');
         }
-    } catch (err) {
-        tgContent.innerHTML = `<div class="empty-state">Failed to load Telegram status</div>`;
+    };
+
+    const generateButton = document.getElementById('gen-otp-btn');
+    if (generateButton) {
+        generateButton.addEventListener('click', generateLinkCode);
+    }
+    const refreshButton = document.getElementById('refresh-otp-btn');
+    if (refreshButton) {
+        refreshButton.addEventListener('click', generateLinkCode);
     }
 }

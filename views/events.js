@@ -1,17 +1,32 @@
 import {
     api,
     toast,
-    Icons
+    Icons,
+    escapeHtml
 } from '/script.js';
 
+// What the status button on an event card moves the event to next.
+const NEXT_EVENT_STATUS = {
+    draft: 'active',
+    active: 'closed',
+    closed: 'draft'
+};
+
+// The Events page: a card per event and, for admins, the New Event button
+// and its form.
 export async function renderEventsView(container, {
     user,
     navigate
 }) {
+    let newEventButton = '';
+    if (user.is_admin) {
+        newEventButton = `<button class="btn btn-primary btn-sm" id="create-event-btn">${Icons.plus} New Event</button>`;
+    }
+
     container.innerHTML = `
     <div class="page-title">
       <span>Events</span>
-      ${user.is_admin ? `<button class="btn btn-primary btn-sm" id="create-event-btn">${Icons.plus} New Event</button>` : ''}
+      ${newEventButton}
     </div>
     <div id="events-grid" class="card-grid">
       <div class="loader"></div>
@@ -37,24 +52,47 @@ export async function renderEventsView(container, {
 
     await loadEvents(container, user, navigate);
 
-    document.getElementById('create-event-btn')?.addEventListener('click', () => {
-        document.getElementById('create-event-modal').classList.add('open');
-    });
-    document.getElementById('close-event-modal')?.addEventListener('click', () => {
-        document.getElementById('create-event-modal').classList.remove('open');
-    });
+    attachCreateEventForm(container, user, navigate);
+}
 
-    document.getElementById('create-event-form')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const errEl = document.getElementById('ev-err');
-        errEl.style.display = 'none';
+// New Event opens the form; submitting it creates the event and reloads the
+// list.
+function attachCreateEventForm(container, user, navigate) {
+    const createEventButton = document.getElementById('create-event-btn');
+    if (createEventButton) {
+        createEventButton.addEventListener('click', () => {
+            document.getElementById('create-event-modal').classList.add('open');
+        });
+    }
+    const closeButton = document.getElementById('close-event-modal');
+    if (closeButton) {
+        closeButton.addEventListener('click', () => {
+            document.getElementById('create-event-modal').classList.remove('open');
+        });
+    }
+
+    const createEventForm = document.getElementById('create-event-form');
+    if (!createEventForm) {
+        return;
+    }
+    // A failed create shows the API's message in the form, under the fields.
+    createEventForm.addEventListener('submit', async (submitEvent) => {
+        submitEvent.preventDefault();
+        const formError = document.getElementById('ev-err');
+        formError.style.display = 'none';
         try {
+            // An empty date is sent as null.
+            let eventDate = null;
+            const dateValue = document.getElementById('ev-date').value;
+            if (dateValue) {
+                eventDate = dateValue;
+            }
             await api('/events', {
                 method: 'POST',
                 body: {
                     name: document.getElementById('ev-name').value.trim(),
                     venue: document.getElementById('ev-venue').value.trim(),
-                    event_date: document.getElementById('ev-date').value || null,
+                    event_date: eventDate,
                     description: document.getElementById('ev-desc').value.trim(),
                 },
             });
@@ -62,16 +100,19 @@ export async function renderEventsView(container, {
             document.getElementById('create-event-form').reset();
             toast('Event created!', 'success');
             await loadEvents(container, user, navigate);
-        } catch (err) {
-            errEl.textContent = err.message;
-            errEl.style.display = 'block';
+        } catch (error) {
+            formError.textContent = error.message;
+            formError.style.display = 'block';
         }
     });
 }
 
+// Fills the events grid: one card per event, or a note when there are none.
 async function loadEvents(container, user, navigate) {
     const grid = document.getElementById('events-grid');
-    if (!grid) return;
+    if (!grid) {
+        return;
+    }
 
     try {
         const {
@@ -79,79 +120,115 @@ async function loadEvents(container, user, navigate) {
         } = await api('/events');
 
         if (!events.length) {
-            grid.innerHTML = `<div class="empty-state">${Icons.calendar}<br>No events yet${user.is_admin ? '. Create one to get started.' : '.'}</div>`;
+            let emptyEnding = '.';
+            if (user.is_admin) {
+                emptyEnding = '. Create one to get started.';
+            }
+            grid.innerHTML = `<div class="empty-state">${Icons.calendar}<br>No events yet${emptyEnding}</div>`;
             return;
         }
 
-        grid.innerHTML = events.map(ev => `
-      <div class="glass-card event-card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-          <span class="status-pill ${ev.status}">${ev.status}</span>
-          ${user.is_admin ? `
-            <div style="display:flex;gap:6px;">
-              <button class="btn-icon btn-sm ev-status-btn" data-id="${ev.id}" data-status="${ev.status}" title="Toggle status">${Icons.refresh}</button>
-              <button class="btn-icon btn-sm ev-delete-btn danger" data-id="${ev.id}" title="Delete event">${Icons.trash}</button>
-            </div>
-          ` : ''}
-        </div>
-        <div class="event-card-title">${ev.name}</div>
-        <div class="event-card-meta">
-          ${ev.venue ? `${Icons.calendar} ${ev.venue}` : ''}
-          ${ev.event_date ? ` · ${new Date(ev.event_date).toLocaleDateString()}` : ''}
-        </div>
-        <div class="event-card-footer">
-          <span class="text-sm text-muted">Code: <strong>${ev.access_code}</strong></span>
-          <button class="btn btn-ghost btn-sm ev-open-btn" data-id="${ev.id}">Manage ${Icons.externalLink}</button>
-        </div>
-      </div>
-    `).join('');
+        grid.innerHTML = events.map((event) => buildEventCard(event, user)).join('');
 
-        grid.querySelectorAll('.ev-open-btn').forEach(btn => {
-            btn.addEventListener('click', () => openEventDetail(btn.dataset.id, container, user, navigate));
-        });
+        attachEventCardButtons(grid, container, user, navigate);
 
-        grid.querySelectorAll('.ev-delete-btn').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                if (!confirm('Delete this event and all its queues?')) return;
-                try {
-                    await api(`/events/${btn.dataset.id}`, {
-                        method: 'DELETE'
-                    });
-                    toast('Event deleted', 'info');
-                    await loadEvents(container, user, navigate);
-                } catch (err) {
-                    toast(err.message, 'error');
-                }
-            });
-        });
-
-        grid.querySelectorAll('.ev-status-btn').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const nextStatus = {
-                    draft: 'active',
-                    active: 'closed',
-                    closed: 'draft'
-                } [btn.dataset.status] || 'draft';
-                try {
-                    await api(`/events/${btn.dataset.id}`, {
-                        method: 'PUT',
-                        body: {
-                            status: nextStatus
-                        }
-                    });
-                    toast(`Status → ${nextStatus}`, 'success');
-                    await loadEvents(container, user, navigate);
-                } catch (err) {
-                    toast(err.message, 'error');
-                }
-            });
-        });
-
-    } catch (err) {
-        grid.innerHTML = `<div class="empty-state">Failed to load events: ${err.message}</div>`;
+    } catch (error) {
+        grid.innerHTML = `<div class="empty-state">Failed to load events: ${escapeHtml(error.message)}</div>`;
     }
 }
 
+// One event's card: status, name, venue and date, access code, and Manage.
+// Admins also get the status and delete buttons.
+function buildEventCard(event, user) {
+    let adminButtons = '';
+    if (user.is_admin) {
+        adminButtons = `
+            <div style="display:flex;gap:6px;">
+              <button class="btn-icon btn-sm ev-status-btn" data-id="${escapeHtml(event.id)}" data-status="${escapeHtml(event.status)}" title="Toggle status">${Icons.refresh}</button>
+              <button class="btn-icon btn-sm ev-delete-btn danger" data-id="${escapeHtml(event.id)}" title="Delete event">${Icons.trash}</button>
+            </div>
+          `;
+    }
+
+    let venue = '';
+    if (event.venue) {
+        venue = `${Icons.calendar} ${escapeHtml(event.venue)}`;
+    }
+
+    let eventDate = '';
+    if (event.event_date) {
+        eventDate = ` · ${new Date(event.event_date).toLocaleDateString()}`;
+    }
+
+    return `
+      <div class="glass-card event-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <span class="status-pill ${escapeHtml(event.status)}">${escapeHtml(event.status)}</span>
+          ${adminButtons}
+        </div>
+        <div class="event-card-title">${escapeHtml(event.name)}</div>
+        <div class="event-card-meta">
+          ${venue}
+          ${eventDate}
+        </div>
+        <div class="event-card-footer">
+          <span class="text-sm text-muted">Code: <strong>${escapeHtml(event.access_code)}</strong></span>
+          <button class="btn btn-ghost btn-sm ev-open-btn" data-id="${escapeHtml(event.id)}">Manage ${Icons.externalLink}</button>
+        </div>
+      </div>
+    `;
+}
+
+// The buttons on the event cards: Manage opens the event, the bin deletes it
+// (after a confirm), and the status button moves it to its next status.
+function attachEventCardButtons(grid, container, user, navigate) {
+    grid.querySelectorAll('.ev-open-btn').forEach((button) => {
+        button.addEventListener('click', () => openEventDetail(button.dataset.id, container, user, navigate));
+    });
+
+    grid.querySelectorAll('.ev-delete-btn').forEach((button) => {
+        button.addEventListener('click', async () => {
+            if (!confirm('Delete this event and all its queues?')) {
+                return;
+            }
+            try {
+                await api(`/events/${button.dataset.id}`, {
+                    method: 'DELETE'
+                });
+                toast('Event deleted', 'info');
+                await loadEvents(container, user, navigate);
+            } catch (error) {
+                toast(error.message, 'error');
+            }
+        });
+    });
+
+    grid.querySelectorAll('.ev-status-btn').forEach((button) => {
+        button.addEventListener('click', async () => {
+            // Draft → active → closed → draft; an unknown status goes to draft.
+            let nextStatus = 'draft';
+            if (NEXT_EVENT_STATUS[button.dataset.status]) {
+                nextStatus = NEXT_EVENT_STATUS[button.dataset.status];
+            }
+            try {
+                await api(`/events/${button.dataset.id}`, {
+                    method: 'PUT',
+                    body: {
+                        status: nextStatus
+                    }
+                });
+                toast(`Status → ${nextStatus}`, 'success');
+                await loadEvents(container, user, navigate);
+            } catch (error) {
+                toast(error.message, 'error');
+            }
+        });
+    });
+}
+
+// The page for one event. It loads the event, its editors and its queues,
+// draws the page (buildEventDetailHtml), then wires up its buttons
+// (attachEventDetailEvents). If either step fails, the page says so.
 async function openEventDetail(eventId, container, user, navigate) {
     container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:200px;"><div class="loader"></div></div>`;
 
@@ -162,12 +239,54 @@ async function openEventDetail(eventId, container, user, navigate) {
             queues
         } = await api(`/events/${eventId}`);
 
-        container.innerHTML = `
+        container.innerHTML = buildEventDetailHtml(event, editors, queues, eventId, user);
+        attachEventDetailEvents(eventId, container, user, navigate);
+
+    } catch (error) {
+        container.innerHTML = `<div class="empty-state">Failed to load event: ${escapeHtml(error.message)}</div>`;
+    }
+}
+
+// The event page's markup: the title and New Queue, the event's details,
+// its editors (admins get the add and remove controls), a card per queue,
+// and the New Queue form.
+function buildEventDetailHtml(event, editors, queues, eventId, user) {
+    let venue = '';
+    if (event.venue) {
+        venue = `<div class="text-sm">${Icons.calendar} ${escapeHtml(event.venue)}</div>`;
+    }
+
+    let eventDate = '';
+    if (event.event_date) {
+        eventDate = `<div class="text-sm mt-1">${new Date(event.event_date).toLocaleDateString()}</div>`;
+    }
+
+    let editorRows = editors.map((editor) => buildEditorRow(editor, eventId, user)).join('');
+    if (!editorRows) {
+        editorRows = '<div class="text-sm text-muted">No editors assigned</div>';
+    }
+
+    let addEditorForm = '';
+    if (user.is_admin) {
+        addEditorForm = `
+            <div style="display:flex;gap:8px;margin-top:10px;">
+              <input id="add-editor-username" placeholder="Username to add…" style="flex:1;" />
+              <button class="btn btn-ghost btn-sm" id="add-editor-btn">Add</button>
+            </div>
+          `;
+    }
+
+    let queueCards = '<div class="empty-state">No queues yet. Create one to get started.</div>';
+    if (queues.length) {
+        queueCards = queues.map((queue) => buildQueueCard(queue, event, eventId)).join('');
+    }
+
+    return `
       <div class="page-title">
         <div style="display:flex;align-items:center;gap:10px;">
           <button class="btn btn-ghost btn-sm" id="back-to-events">&larr; Events</button>
-          <span>${event.name}</span>
-          <span class="status-pill ${event.status}">${event.status}</span>
+          <span>${escapeHtml(event.name)}</span>
+          <span class="status-pill ${escapeHtml(event.status)}">${escapeHtml(event.status)}</span>
         </div>
         <button class="btn btn-primary btn-sm" id="create-queue-btn">${Icons.plus} New Queue</button>
       </div>
@@ -175,45 +294,22 @@ async function openEventDetail(eventId, container, user, navigate) {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
         <div class="glass-card" style="padding:16px;">
           <div class="section-label">Event Info</div>
-          ${event.venue ? `<div class="text-sm">${Icons.calendar} ${event.venue}</div>` : ''}
-          ${event.event_date ? `<div class="text-sm mt-1">${new Date(event.event_date).toLocaleDateString()}</div>` : ''}
-          <div class="text-sm mt-1 text-muted">Code: <strong>${event.access_code}</strong></div>
+          ${venue}
+          ${eventDate}
+          <div class="text-sm mt-1 text-muted">Code: <strong>${escapeHtml(event.access_code)}</strong></div>
         </div>
         <div class="glass-card" style="padding:16px;">
           <div class="section-label">Editors</div>
           <div id="editors-list">
-            ${editors.map(e => `
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-                <span class="text-sm">${e.gftvhello_users?.display_name} (@${e.gftvhello_users?.username})</span>
-                ${user.is_admin ? `<button class="btn-icon btn-sm danger remove-editor-btn" data-event="${eventId}" data-user="${e.user_id}">${Icons.trash}</button>` : ''}
-              </div>
-            `).join('') || '<div class="text-sm text-muted">No editors assigned</div>'}
+            ${editorRows}
           </div>
-          ${user.is_admin ? `
-            <div style="display:flex;gap:8px;margin-top:10px;">
-              <input id="add-editor-username" placeholder="Username to add…" style="flex:1;" />
-              <button class="btn btn-ghost btn-sm" id="add-editor-btn">Add</button>
-            </div>
-          ` : ''}
+          ${addEditorForm}
         </div>
       </div>
 
       <div class="section-label">Queues</div>
       <div id="queues-list" class="card-grid">
-        ${queues.length ? queues.map(q => `
-          <div class="glass-card event-card">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-              <span class="status-pill ${q.status}">${q.status}</span>
-              <span class="text-sm text-muted">Max: ${q.max_serving}</span>
-            </div>
-            <div class="event-card-title">${q.name}</div>
-            <div class="event-card-meta">Code: ${q.access_code}</div>
-            <div class="event-card-footer">
-              <a href="/display/${event.access_code}/${q.access_code}" target="_blank" class="btn btn-ghost btn-sm">${Icons.monitor} Display</a>
-              <button class="btn btn-primary btn-sm operate-queue-btn" data-queue="${q.id}" data-event="${eventId}">Operate</button>
-            </div>
-          </div>
-        `).join('') : '<div class="empty-state">No queues yet. Create one to get started.</div>'}
+        ${queueCards}
       </div>
 
       <!-- Create Queue Modal -->
@@ -233,99 +329,166 @@ async function openEventDetail(eventId, container, user, navigate) {
         </div>
       </div>
     `;
+}
 
-        document.getElementById('back-to-events').addEventListener('click', () => renderEventsView(container, {
-            user,
-            navigate
-        }));
-        document.getElementById('create-queue-btn').addEventListener('click', () => {
-            document.getElementById('create-queue-modal').classList.add('open');
-        });
-        document.getElementById('close-queue-modal').addEventListener('click', () => {
+// One editor in the Editors box, with a remove button for admins.
+function buildEditorRow(editor, eventId, user) {
+    // gftvhello_users is the editor's account, and can be missing.
+    let displayName;
+    let username;
+    const account = editor.gftvhello_users;
+    if (account !== null && account !== undefined) {
+        displayName = account.display_name;
+        username = account.username;
+    }
+
+    let removeButton = '';
+    if (user.is_admin) {
+        removeButton = `<button class="btn-icon btn-sm danger remove-editor-btn" data-event="${escapeHtml(eventId)}" data-user="${escapeHtml(editor.user_id)}">${Icons.trash}</button>`;
+    }
+
+    return `
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                <span class="text-sm">${escapeHtml(displayName)} (@${escapeHtml(username)})</span>
+                ${removeButton}
+              </div>
+            `;
+}
+
+// One queue's card on the event page, with Display and Operate.
+function buildQueueCard(queue, event, eventId) {
+    return `
+          <div class="glass-card event-card">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+              <span class="status-pill ${escapeHtml(queue.status)}">${escapeHtml(queue.status)}</span>
+              <span class="text-sm text-muted">Max: ${queue.max_serving}</span>
+            </div>
+            <div class="event-card-title">${escapeHtml(queue.name)}</div>
+            <div class="event-card-meta">Code: ${escapeHtml(queue.access_code)}</div>
+            <div class="event-card-footer">
+              <a href="/display/${encodeURIComponent(event.access_code)}/${encodeURIComponent(queue.access_code)}" target="_blank" class="btn btn-ghost btn-sm">${Icons.monitor} Display</a>
+              <button class="btn btn-primary btn-sm operate-queue-btn" data-queue="${escapeHtml(queue.id)}" data-event="${escapeHtml(eventId)}">Operate</button>
+            </div>
+          </div>
+        `;
+}
+
+// Wires up the event page: back to Events, the New Queue form, the Operate
+// buttons and, for admins, adding and removing editors.
+function attachEventDetailEvents(eventId, container, user, navigate) {
+    document.getElementById('back-to-events').addEventListener('click', () => renderEventsView(container, {
+        user,
+        navigate
+    }));
+    document.getElementById('create-queue-btn').addEventListener('click', () => {
+        document.getElementById('create-queue-modal').classList.add('open');
+    });
+    document.getElementById('close-queue-modal').addEventListener('click', () => {
+        document.getElementById('create-queue-modal').classList.remove('open');
+    });
+
+    attachCreateQueueForm(eventId, container, user, navigate);
+    attachOperateButtons(container, user, navigate);
+
+    if (user.is_admin) {
+        attachEditorControls(eventId, container, user, navigate);
+    }
+}
+
+// Submitting the New Queue form creates the queue in this event and reopens
+// the event page.
+function attachCreateQueueForm(eventId, container, user, navigate) {
+    const createQueueForm = document.getElementById('create-queue-form');
+    if (!createQueueForm) {
+        return;
+    }
+    createQueueForm.addEventListener('submit', async (submitEvent) => {
+        submitEvent.preventDefault();
+        const formError = document.getElementById('q-err');
+        formError.style.display = 'none';
+        try {
+            await api('/queues', {
+                method: 'POST',
+                body: {
+                    event_id: eventId,
+                    name: document.getElementById('q-name').value.trim(),
+                    description: document.getElementById('q-desc').value.trim(),
+                    max_serving: parseInt(document.getElementById('q-max').value),
+                },
+            });
+            toast('Queue created!', 'success');
             document.getElementById('create-queue-modal').classList.remove('open');
-        });
+            openEventDetail(eventId, container, user, navigate);
+        } catch (error) {
+            formError.textContent = error.message;
+            formError.style.display = 'block';
+        }
+    });
+}
 
-        document.getElementById('create-queue-form')?.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const errEl = document.getElementById('q-err');
-            errEl.style.display = 'none';
+// Operate on a queue card opens the queue operator view.
+function attachOperateButtons(container, user, navigate) {
+    container.querySelectorAll('.operate-queue-btn').forEach((button) => {
+        button.addEventListener('click', () => {
+            import('/views/queue-operator.js').then((operatorModule) => {
+                operatorModule.renderQueueOperatorView(container, {
+                    user,
+                    navigate,
+                    queueId: button.dataset.queue,
+                    eventId: button.dataset.event
+                });
+            });
+        });
+    });
+}
+
+// Admins only: Add looks the username up and makes that account an editor
+// of this event; the bin on an editor's row removes them.
+function attachEditorControls(eventId, container, user, navigate) {
+    const addEditorButton = document.getElementById('add-editor-btn');
+    if (addEditorButton) {
+        addEditorButton.addEventListener('click', async () => {
+            const username = document.getElementById('add-editor-username').value.trim();
+            if (!username) {
+                return;
+            }
             try {
-                await api('/queues', {
+                // Resolve username → user_id
+                const {
+                    data: users
+                } = await api('/admin/users?username=' + encodeURIComponent(username));
+                if (!users || !users.length) {
+                    toast('User not found', 'error');
+                    return;
+                }
+                await api(`/events/${eventId}/editors`, {
                     method: 'POST',
                     body: {
-                        event_id: eventId,
-                        name: document.getElementById('q-name').value.trim(),
-                        description: document.getElementById('q-desc').value.trim(),
-                        max_serving: parseInt(document.getElementById('q-max').value),
-                    },
+                        user_id: users[0].id
+                    }
                 });
-                toast('Queue created!', 'success');
-                document.getElementById('create-queue-modal').classList.remove('open');
+                toast(`${username} added as editor`, 'success');
                 openEventDetail(eventId, container, user, navigate);
-            } catch (err) {
-                errEl.textContent = err.message;
-                errEl.style.display = 'block';
+            } catch (error) {
+                toast(error.message, 'error');
             }
         });
-
-        container.querySelectorAll('.operate-queue-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                import('/views/queue-operator.js').then(m => {
-                    m.renderQueueOperatorView(container, {
-                        user,
-                        navigate,
-                        queueId: btn.dataset.queue,
-                        eventId: btn.dataset.event
-                    });
-                });
-            });
-        });
-
-        if (user.is_admin) {
-            document.getElementById('add-editor-btn')?.addEventListener('click', async () => {
-                const username = document.getElementById('add-editor-username').value.trim();
-                if (!username) return;
-                try {
-                    // Resolve username → user_id
-                    const {
-                        data: users
-                    } = await api('/admin/users?username=' + encodeURIComponent(username));
-                    if (!users?.length) {
-                        toast('User not found', 'error');
-                        return;
-                    }
-                    await api(`/events/${eventId}/editors`, {
-                        method: 'POST',
-                        body: {
-                            user_id: users[0].id
-                        }
-                    });
-                    toast(`${username} added as editor`, 'success');
-                    openEventDetail(eventId, container, user, navigate);
-                } catch (err) {
-                    toast(err.message, 'error');
-                }
-            });
-
-            container.querySelectorAll('.remove-editor-btn').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    try {
-                        await api(`/events/${btn.dataset.event}/editors`, {
-                            method: 'DELETE',
-                            body: {
-                                user_id: btn.dataset.user
-                            }
-                        });
-                        toast('Editor removed', 'info');
-                        openEventDetail(eventId, container, user, navigate);
-                    } catch (err) {
-                        toast(err.message, 'error');
-                    }
-                });
-            });
-        }
-
-    } catch (err) {
-        container.innerHTML = `<div class="empty-state">Failed to load event: ${err.message}</div>`;
     }
+
+    container.querySelectorAll('.remove-editor-btn').forEach((button) => {
+        button.addEventListener('click', async () => {
+            try {
+                await api(`/events/${button.dataset.event}/editors`, {
+                    method: 'DELETE',
+                    body: {
+                        user_id: button.dataset.user
+                    }
+                });
+                toast('Editor removed', 'info');
+                openEventDetail(eventId, container, user, navigate);
+            } catch (error) {
+                toast(error.message, 'error');
+            }
+        });
+    });
 }

@@ -1,0 +1,10 @@
+# Test files and tooling: not part of the site, so Vercel does not publish them.
+/tests
+/playwright.config.js
+/test-results
+/playwright-report
+/.claude
+/.eslintrc.json
+# Database scripts: run by hand in Supabase, not part of the site.
+/schema.sql
+/sql

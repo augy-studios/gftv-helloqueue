@@ -143,6 +143,50 @@ create index idx_gftvqueue_otps_code    on public.gftvqueue_telegram_otps using 
 create index idx_gftvqueue_otps_user    on public.gftvqueue_telegram_otps using btree (user_id);
 
 -- ─────────────────────────────────────────
+-- ATTENDEE LOGIN CODES  (queue page → bot sign-in, no account needed)
+-- POST /api/auth/attendee-login makes a code; the bot (/attend or the
+-- attend_ deep link) sets used_at and session_token; the page polls with GET,
+-- which hands session_token out once and then sets it back to null.
+-- Written from api/auth/attendee-login.js, api/telegram/webhook.js and
+-- bot/index.js: this table was in use before it was in this file.
+-- ─────────────────────────────────────────
+create table public.gftvqueue_attendee_login_codes (
+  id uuid primary key default gen_random_uuid(),
+  code          char(6) not null unique,       -- randomCode(6) in api/_auth.js; char(6) inferred, like otp_code
+  used_at       timestamptz null,              -- null = the bot hasn't confirmed it yet
+  expires_at    timestamptz not null default (now() + interval '10 minutes'),  -- the code never sets it: default inferred, like the OTPs
+  session_token text null,                     -- copy of gftvqueue_attendee_sessions.token; null again after the first poll
+  created_at    timestamptz not null default now()   -- inferred: the code doesn't read it
+) tablespace pg_default;
+
+-- No foreign key on session_token: the code never joins on it, and the bot
+-- deletes a Telegram user's old sessions while old codes may still hold them.
+create index idx_gftvqueue_login_codes_code on public.gftvqueue_attendee_login_codes using btree (code);
+
+-- ─────────────────────────────────────────
+-- ATTENDEE SESSIONS  (Telegram sign-in without an account)
+-- The bot inserts one per sign-in after deleting the Telegram user's earlier
+-- ones; api/_auth.js looks the bearer token up here when it isn't an account
+-- session. Written from api/_auth.js, api/queues/[queueId]/join.js,
+-- api/telegram/webhook.js and bot/index.js: this table was in use before it
+-- was in this file.
+-- ─────────────────────────────────────────
+create table public.gftvqueue_attendee_sessions (
+  id uuid primary key default gen_random_uuid(),
+  token text not null unique default encode(gen_random_bytes(32), 'hex'),  -- the insert sends no token and reads it back; format inferred, like entry tokens
+  telegram_user_id  bigint not null,           -- Telegram chat_id (integer from Telegram API)
+  telegram_username text null,
+  display_name      text not null,             -- the bot always sends one ('Attendee' at worst)
+  expires_at timestamptz not null default (now() + interval '30 days'),  -- the code never sets it: 30 days inferred
+  created_at timestamptz not null default now()   -- inferred: the code doesn't read it
+) tablespace pg_default;
+
+-- telegram_user_id is not unique: the bot keeps one session per Telegram user
+-- by deleting before it inserts.
+create index idx_gftvqueue_att_sessions_token on public.gftvqueue_attendee_sessions using btree (token);
+create index idx_gftvqueue_att_sessions_tg    on public.gftvqueue_attendee_sessions using btree (telegram_user_id);
+
+-- ─────────────────────────────────────────
 -- UPDATED_AT trigger helper
 -- ─────────────────────────────────────────
 create or replace function public.set_updated_at()

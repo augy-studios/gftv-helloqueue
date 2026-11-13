@@ -31,14 +31,15 @@ helloqueue/
 ├── schema.sql                          # Supabase DB schema (run this first)
 │
 ├── api/                                # Vercel serverless functions
-│   ├── _auth.js                        # requireAuth(), handleCors(), randomCode()
+│   ├── _auth.js                        # requireAuth(), requireQueueAccess(), readBearerToken(), handleCors(), randomCode()
 │   ├── _supabase.js                    # Shared Supabase client (service key)
 │   ├── _telegram.js                    # sendTelegramMessage() HTTP helper
 │   │
 │   ├── auth/
+│   │   ├── attendee-login.js           # POST - new attendee sign-in code / GET - poll it: hands out the session token once, later polls get 410
 │   │   ├── login.js                    # POST - username + password login
 │   │   ├── logout.js                   # POST - delete session token
-│   │   ├── me.js                       # GET  - current user + telegram link status
+│   │   ├── me.js                       # GET  - the caller's Telegram link status
 │   │   └── register.js                 # POST - create account (pending approval)
 │   │
 │   ├── admin/
@@ -51,15 +52,15 @@ helloqueue/
 │   │   ├── index.js                    # GET list / POST create (admin only)
 │   │   ├── [eventId].js                # GET / PUT / DELETE single event
 │   │   └── [eventId]/
-│   │       └── editors.js              # GET / POST / DELETE event editors (admin only)
+│   │       └── editors.js              # GET (superadmin or the event's editors) / POST / DELETE (admin only)
 │   │
 │   ├── queues/
-│   │   ├── index.js                    # GET list / POST create (event editor+)
-│   │   ├── [queueId].js                # GET (with grouped entries) / PUT / DELETE
+│   │   ├── index.js                    # GET list (?event_id=), GET ?mine=1 (my queues) / POST create (event editor+)
+│   │   ├── [queueId].js                # GET (grouped entries, completedCount and the last 5 finished) / PUT / DELETE
 │   │   └── [queueId]/
 │   │       ├── join.js                 # POST - attendee joins queue
 │   │       ├── leave.js                # POST - attendee leaves queue
-│   │       ├── operate.js              # POST - call_next, call_batch, mark_missed, mark_complete
+│   │       ├── operate.js              # POST - call_next, call_batch, mark_missed, mark_complete, mark_entered, rejoin
 │   │       ├── scan.js                 # POST - validate one-time QR entry token
 │   │       ├── status.js               # GET  - own queue status + QR data URL if serving
 │   │       ├── notify-prefs.js         # PUT  - toggle notify_serving / notify_next
@@ -114,6 +115,15 @@ All tables use the `gftvqueue_` prefix. The `gftvhello_users` and `gftvhello_ses
 
 No viewer role. You either have queue access or you don't.
 
+Who sees what:
+
+- **Queues and their entries:** a superadmin, the event's editors, and that queue's own staff.
+- **Events, event pages and editor lists:** a superadmin and the event's editors. Editors' emails
+  are never sent.
+- **Staff** see only their own queues, and access codes only for their own queues.
+- Every response carries only what its page shows, plus the ids its buttons send (rule F2). Write
+  endpoints answer `{ ok: true }`. `tests/api/response-keys.test.mjs` pins the keys.
+
 ---
 
 ## URL Structure
@@ -151,24 +161,66 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_KEY=eyJ...          # service_role key (not anon)
 TELEGRAM_BOT_TOKEN=7123456789:AAE... # from @BotFather
 WEBAPP_URL=https://queue.gftv.asia   # bot only
+TELEGRAM_WEBHOOK_SECRET=...          # Vercel only: the same value as setWebhook's secret_token
+TELEGRAM_BOT_USERNAME=...            # Vercel only: the bot's username, for the attendee page's link
 ```
 
-Set the first three in Vercel dashboard. All four go in the VPS bot's environment.
+Set the first three, `TELEGRAM_WEBHOOK_SECRET` and `TELEGRAM_BOT_USERNAME` in the Vercel dashboard. The first four (not the
+secret) go in the VPS bot's environment. While `TELEGRAM_WEBHOOK_SECRET` is unset, the webhook
+rejects every request.
 
 ---
+
+## Running the tests
+
+Needs Node 22.15 or later. Nothing reaches Supabase or Telegram, and no `.env` is read.
+
+```bash
+npm install
+npm test            # each API handler against an in-memory fake Supabase (tests/support/fixtures.cjs)
+npm run test:e2e    # Playwright: the pages served with vercel.json's rewrites, each /api call running the real handler
+```
+
+- On a new machine, run `npx playwright install chromium` once first.
+- `npm run test:e2e` uses port 4391; set `HELLOQUEUE_TEST_PORT` to change it, for example when two
+  Playwright runs happen at once.
+- The bot's button handler is tested by loading `bot/index.js` with a fake TelegramBot
+  (`tests/support/fake-telegram-bot.cjs`).
+- A test named after a gap (H1, H2, M1 and so on) either records the gap or, once it's fixed,
+  proves the fix. Tests labelled "open:" record known behaviour that no job has fixed yet.
+- Page safety: `tests/e2e/xss.spec.js` proves data shows as text (H3), and
+  `tests/e2e/analytics.spec.js` that staff and sign-in pages load no analytics (F1).
+- `tests/`, `playwright.config.js`, `.eslintrc.json`, `schema.sql` and `sql/` are listed in `.vercelignore`, so Vercel
+  doesn't publish them.
 
 ## Deployment
 
 ### 1. Database
-Run `schema.sql` in the Supabase SQL editor.
+Run `schema.sql` in the Supabase SQL editor (a new database only). Then run
+`sql/enable-row-level-security.sql` once: it turns on row-level security with no policies, so only
+the service key (Vercel and the bot) can read the tables. Both must use the `service_role` key, not
+anon. To undo, the script's header gives the `disable row level security` statements.
 
 ### 2. Vercel
 ```bash
 git init && git add . && git push origin main
 # Connect repo in Vercel dashboard
-# Add env vars: SUPABASE_URL, SUPABASE_SERVICE_KEY, TELEGRAM_BOT_TOKEN
+# Add env vars: SUPABASE_URL, SUPABASE_SERVICE_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, TELEGRAM_BOT_USERNAME
 # Set custom domain: queue.gftv.asia
 ```
+
+To use the webhook, register it once with the Bot API (BotFather can't set the secret), passing
+the same secret as `TELEGRAM_WEBHOOK_SECRET`:
+
+```bash
+curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
+  -d url=https://queue.gftv.asia/api/telegram/webhook \
+  -d secret_token=<TELEGRAM_WEBHOOK_SECRET>
+```
+
+Telegram sends updates either to a webhook or to one polling bot, never both. While a webhook is
+set, the VPS bot in step 3 gets no updates (`polling_error` 409); to go back to the polling bot,
+call `deleteWebhook`. The webhook handles fewer commands than the polling bot and no buttons.
 
 ### 3. Telegram Bot (VPS)
 ```bash
@@ -176,7 +228,7 @@ git init && git add . && git push origin main
 tmux new-session -s helloqueue-bot
 
 cd ~/helloqueue-bot
-npm install
+npm install   # includes dotenv, so a .env next to index.js is read
 
 export TELEGRAM_BOT_TOKEN="..."
 export SUPABASE_URL="..."

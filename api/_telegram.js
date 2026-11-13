@@ -1,5 +1,10 @@
+// Sends a message from the bot through the Telegram Bot API's sendMessage
+// method. Markdown is the default parse mode; `options` can change it or add
+// buttons. A failure is logged, never thrown, so a handler carries on.
 export async function sendTelegramMessage(chatId, text, options = {}) {
-    if (!chatId) return;
+    if (!chatId) {
+        return;
+    }
     if (!process.env.TELEGRAM_BOT_TOKEN) {
         console.error('[Telegram] TELEGRAM_BOT_TOKEN is not set — message not sent to', chatId);
         return;
@@ -8,7 +13,7 @@ export async function sendTelegramMessage(chatId, text, options = {}) {
     try {
         const payload = {
             chat_id: chatId,
-            text,
+            text: text,
             parse_mode: 'Markdown',
             ...options,
         };
@@ -24,10 +29,10 @@ export async function sendTelegramMessage(chatId, text, options = {}) {
         );
 
         if (!response.ok) {
-            const err = await response.json();
-            console.error('Telegram send error:', err);
+            const errorDetails = await response.json();
+            console.error('Telegram send error:', errorDetails);
         }
-    } catch (err) {
-        console.error('Telegram fetch error:', err);
+    } catch (error) {
+        console.error('Telegram fetch error:', error);
     }
 }

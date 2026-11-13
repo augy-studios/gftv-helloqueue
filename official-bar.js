@@ -29,10 +29,13 @@ const COPY = {
 
 // "a or b", "a, b or c".
 function joinDomains(domains) {
-    if (domains.length <= 1) return domains.join('');
+    if (domains.length <= 1) {
+        return domains.join('');
+    }
     return `${domains.slice(0, -1).join(', ')} or ${domains[domains.length - 1]}`;
 }
 
+// Whether the reader left the panel open last time.
 function readOpen() {
     try {
         return localStorage.getItem(STORAGE_KEY) === 'open';
@@ -41,18 +44,35 @@ function readOpen() {
     }
 }
 
+// Remembers whether the panel is open, for the next page view.
 function writeOpen(open) {
     try {
-        if (open) localStorage.setItem(STORAGE_KEY, 'open');
-        else localStorage.removeItem(STORAGE_KEY);
+        if (open) {
+            localStorage.setItem(STORAGE_KEY, 'open');
+        } else {
+            localStorage.removeItem(STORAGE_KEY);
+        }
     } catch { /* storage unavailable, the bar still works for this page view */ }
 }
 
+// Puts the official bar at the very top of the page (once; a second call
+// returns the bar already there) and wires up its "How to identify" toggle.
+// The panel starts open if the reader left it open last time.
 export function buildOfficialBar() {
     const existing = document.getElementById('officialBar');
-    if (existing) return existing;
+    if (existing) {
+        return existing;
+    }
 
     const open = readOpen();
+    // The panel's class and hidden attribute for its starting state.
+    let panelOpenClass = '';
+    let panelHiddenAttribute = ' hidden';
+    if (open) {
+        panelOpenClass = ' open';
+        panelHiddenAttribute = '';
+    }
+
     const bar = document.createElement('div');
     bar.className = 'gov-bar';
     bar.id = 'officialBar';
@@ -70,7 +90,7 @@ export function buildOfficialBar() {
       </button>
     </div>
 
-    <div class="gov-bar-panel${open ? ' open' : ''}" id="officialBarPanel"${open ? '' : ' hidden'}>
+    <div class="gov-bar-panel${panelOpenClass}" id="officialBarPanel"${panelHiddenAttribute}>
       <div class="gov-bar-panel-inner">
         <div class="gov-bar-points">
           <div class="gov-bar-point">
@@ -99,11 +119,12 @@ export function buildOfficialBar() {
     const toggle = bar.querySelector('#officialBarToggle');
     const panel = bar.querySelector('#officialBarPanel');
 
-    function setOpen(next) {
-        toggle.setAttribute('aria-expanded', String(next));
-        writeOpen(next);
+    // Opens or closes the panel, and remembers which.
+    function setOpen(shouldOpen) {
+        toggle.setAttribute('aria-expanded', String(shouldOpen));
+        writeOpen(shouldOpen);
 
-        if (next) {
+        if (shouldOpen) {
             // Un-hide first, then flip the class a frame later so the height
             // transition has a starting point to run from.
             panel.hidden = false;
@@ -116,11 +137,13 @@ export function buildOfficialBar() {
         panel.classList.remove('open');
         // Out of the accessibility tree once the collapse has finished. The
         // timer covers the case where transitionend never fires.
-        const finish = () => {
-            if (!panel.classList.contains('open')) panel.hidden = true;
+        const hideIfStillClosed = () => {
+            if (!panel.classList.contains('open')) {
+                panel.hidden = true;
+            }
         };
-        panel.addEventListener('transitionend', finish, { once: true });
-        setTimeout(finish, 260);
+        panel.addEventListener('transitionend', hideIfStillClosed, { once: true });
+        setTimeout(hideIfStillClosed, 260);
     }
 
     toggle.addEventListener('click', () => {

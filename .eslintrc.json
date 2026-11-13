@@ -1,0 +1,55 @@
+{
+    "root": true,
+    "parserOptions": {
+        "ecmaVersion": "latest"
+    },
+    "ignorePatterns": [
+        "node_modules/",
+        "tests/",
+        "tests/support/fixtures.cjs",
+        "test-results/",
+        "playwright-report/"
+    ],
+    "rules": {
+        "no-nested-ternary": "error",
+        "no-ternary": "error",
+        "curly": ["error", "all"],
+        "id-length": ["error", {
+            "min": 2,
+            "exceptions": ["id"],
+            "properties": "never"
+        }],
+        "no-restricted-syntax": ["error",
+            {
+                "selector": "ChainExpression",
+                "message": "Write optional chaining (?.) as explicit checks in an if, for example: let name = 'Guest'; if (user && user.name) { name = user.name; }"
+            },
+            {
+                "selector": "LogicalExpression[operator='??']",
+                "message": "Write ?? as a value plus an if that replaces it, for example: let limit = 30; if (input !== null && input !== undefined) { limit = input; }"
+            }
+        ]
+    },
+    "overrides": [
+        {
+            "files": ["script.js", "views/**/*.js", "official-bar.js", "sw-register.js"],
+            "env": { "browser": true, "es2022": true },
+            "parserOptions": { "sourceType": "module" }
+        },
+        {
+            "files": ["sw.js"],
+            "env": { "serviceworker": true, "es2022": true },
+            "parserOptions": { "sourceType": "script" }
+        },
+        {
+            "files": ["api/**/*.js", "bot/**/*.js"],
+            "env": { "node": true, "es2022": true },
+            "parserOptions": { "sourceType": "module" }
+        },
+        {
+            "files": ["playwright.config.js"],
+            "env": { "node": true, "es2022": true },
+            "parserOptions": { "sourceType": "script" }
+        }
+    ]
+}
