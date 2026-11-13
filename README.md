@@ -157,6 +157,22 @@ Set the first three in Vercel dashboard. All four go in the VPS bot's environmen
 
 ---
 
+## Running the tests
+
+Needs Node 22.15 or later. Nothing reaches Supabase or Telegram, and no `.env` is read.
+
+```bash
+npm install
+npm test            # each API handler against an in-memory fake Supabase (tests/support/fixtures.cjs)
+npm run test:e2e    # Playwright: the pages served with vercel.json's rewrites, each /api call running the real handler
+```
+
+- On a new machine, run `npx playwright install chromium` once first.
+- `npm run test:e2e` uses port 4391; set `HELLOQUEUE_TEST_PORT` to change it.
+- Tests named after a gap (H1, H2, M1 and so on) record known gaps on purpose. Fixing a gap means
+  changing its test.
+- `tests/` and `playwright.config.js` are listed in `.vercelignore`, so Vercel doesn't publish them.
+
 ## Deployment
 
 ### 1. Database

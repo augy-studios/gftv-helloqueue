@@ -1,0 +1,6 @@
+# Test files and tooling: not part of the site, so Vercel does not publish them.
+/tests
+/playwright.config.js
+/test-results
+/playwright-report
+/.claude
