@@ -1,31 +1,33 @@
-import {
-    supabase
-} from '../_supabase.js';
-import {
-    handleCors,
-    requireAuth
-} from '../_auth.js';
+// GET    → the operator page's queue: details, entries and the caller's role
+// PUT    → update queue settings (operators and queue admins)
+// DELETE → delete the queue (queue admins)
+import { supabase } from '../_supabase.js';
+import { handleCors, requireAuth } from '../_auth.js';
 
+// Whether the user may operate this queue, and whether they're its queue
+// admin. A superadmin is both.
 async function canOperateQueue(userId, queueId, isAdmin) {
-    if (isAdmin) return {
-        allowed: true,
-        isQueueAdmin: true
-    };
-    const {
-        data
-    } = await supabase
+    if (isAdmin) {
+        return {
+            allowed: true,
+            isQueueAdmin: true
+        };
+    }
+    const { data: permission } = await supabase
         .from('gftvqueue_queue_permissions')
         .select('is_queue_admin')
         .eq('queue_id', queueId)
         .eq('user_id', userId)
         .maybeSingle();
-    if (!data) return {
-        allowed: false,
-        isQueueAdmin: false
-    };
+    if (!permission) {
+        return {
+            allowed: false,
+            isQueueAdmin: false
+        };
+    }
     return {
         allowed: true,
-        isQueueAdmin: data.is_queue_admin
+        isQueueAdmin: permission.is_queue_admin
     };
 }
 
@@ -53,201 +55,195 @@ function servingCardFields(entry) {
 }
 
 async function isEventEditor(userId, eventId) {
-    const {
-        data
-    } = await supabase
+    const { data: editorRow } = await supabase
         .from('gftvqueue_event_editors')
         .select('id')
         .eq('event_id', eventId)
         .eq('user_id', userId)
         .maybeSingle();
-    return !!data;
+    return Boolean(editorRow);
 }
 
-export default async function handler(req, res) {
-    if (handleCors(req, res)) return;
+export default async function handler(request, response) {
+    if (handleCors(request, response)) {
+        return;
+    }
 
-    const user = await requireAuth(req, res);
-    if (!user) return;
+    const user = await requireAuth(request, response);
+    if (!user) {
+        return;
+    }
 
+    const { queueId } = request.query;
+
+    if (request.method === 'GET') {
+        return getQueue(user, queueId, response);
+    }
+    if (request.method === 'PUT') {
+        return updateQueue(user, queueId, request, response);
+    }
+    if (request.method === 'DELETE') {
+        return deleteQueue(user, queueId, response);
+    }
+
+    return response.status(405).json({ error: 'Method not allowed' });
+}
+
+// ── GET ───────────────────────────────────────────────────────────────────────
+
+// Sends only what the operator page shows (rule F2). event_id is read for
+// the editor check and is not sent. Only a superadmin, an admin or operator
+// of this queue, or an editor of the queue's event may read it.
+async function getQueue(user, queueId, response) {
     const {
-        queueId
-    } = req.query;
+        data: queueRow,
+        error
+    } = await supabase
+        .from('gftvqueue_queues')
+        .select('event_id, name, status, access_code, max_serving, gftvqueue_events(access_code)')
+        .eq('id', queueId)
+        .single();
 
-    // ── GET ───────────────────────────────────────────────────────────────────
-    // Sends only what the operator page shows (rule F2). event_id is read for
-    // the editor check and is not sent.
-    if (req.method === 'GET') {
-        const {
-            data: queueRow,
-            error
-        } = await supabase
-            .from('gftvqueue_queues')
-            .select('event_id, name, status, access_code, max_serving, gftvqueue_events(access_code)')
-            .eq('id', queueId)
-            .single();
-
-        if (error || !queueRow) return res.status(404).json({
-            error: 'Queue not found'
-        });
-
-        // Permission info. Only a superadmin, an admin or operator of this
-        // queue, or an editor of the queue's event may read it.
-        const {
-            allowed,
-            isQueueAdmin
-        } = await canOperateQueue(user.id, queueId, user.is_admin);
-
-        if (!allowed) {
-            const editor = await isEventEditor(user.id, queueRow.event_id);
-            if (!editor) return res.status(403).json({
-                error: 'No access to this queue'
-            });
-        }
-
-        let eventAccessCode = null;
-        if (queueRow.gftvqueue_events) {
-            eventAccessCode = queueRow.gftvqueue_events.access_code;
-        }
-        const queue = {
-            name: queueRow.name,
-            status: queueRow.status,
-            access_code: queueRow.access_code,
-            max_serving: queueRow.max_serving,
-            event_access_code: eventAccessCode,
-        };
-
-        // Entries still in the queue: called, waiting and missed.
-        const {
-            data: activeEntries
-        } = await supabase
-            .from('gftvqueue_entries')
-            .select('id, queue_number, status, display_name, telegram_username, entered_at')
-            .eq('queue_id', queueId)
-            .in('status', ['serving', 'waiting', 'missed'])
-            .order('queue_number', {
-                ascending: true
-            });
-
-        // The Completed column (decision 4): how many have finished, and only
-        // the last RECENT_COMPLETED_LIMIT of them, newest first.
-        const {
-            count: completedCount
-        } = await supabase
-            .from('gftvqueue_entries')
-            .select('id', {
-                count: 'exact',
-                head: true
-            })
-            .eq('queue_id', queueId)
-            .eq('status', 'completed');
-
-        const {
-            data: recentCompleted
-        } = await supabase
-            .from('gftvqueue_entries')
-            .select('queue_number, display_name, telegram_username')
-            .eq('queue_id', queueId)
-            .eq('status', 'completed')
-            .order('completed_at', {
-                ascending: false,
-                nullsFirst: false
-            })
-            .order('queue_number', {
-                ascending: false
-            })
-            .limit(RECENT_COMPLETED_LIMIT);
-
-        let rows = [];
-        if (activeEntries) {
-            rows = activeEntries;
-        }
-        let completedList = [];
-        if (recentCompleted) {
-            completedList = recentCompleted;
-        }
-        let finishedCount = 0;
-        if (completedCount) {
-            finishedCount = completedCount;
-        }
-
-        const grouped = {
-            serving: rows.filter(entry => entry.status === 'serving').map(servingCardFields),
-            waiting: rows.filter(entry => entry.status === 'waiting').map(entryCardFields),
-            missed: rows.filter(entry => entry.status === 'missed').map(entryCardFields),
-            completed: completedList,
-        };
-
-        return res.status(200).json({
-            queue,
-            entries: grouped,
-            completedCount: finishedCount,
-            can_operate: allowed,
-            is_queue_admin: isQueueAdmin
-        });
+    if (error || !queueRow) {
+        return response.status(404).json({ error: 'Queue not found' });
     }
 
-    // ── PUT: update queue settings ────────────────────────────────────────────
-    if (req.method === 'PUT') {
-        const {
-            allowed
-        } = await canOperateQueue(user.id, queueId, user.is_admin);
-        if (!allowed) return res.status(403).json({
-            error: 'No permission to edit this queue'
-        });
+    const { allowed, isQueueAdmin } = await canOperateQueue(user.id, queueId, user.is_admin);
 
-        const {
-            name,
-            description,
-            max_serving,
-            status
-        } = req.body || {};
-        const updates = {};
-        if (name !== undefined) updates.name = name;
-        if (description !== undefined) updates.description = description;
-        if (max_serving !== undefined) updates.max_serving = max_serving;
-        if (status !== undefined) updates.status = status;
-
-        // .select('id').single() keeps the error for a queue that doesn't
-        // exist. The page reads nothing back (rule F2).
-        const {
-            error
-        } = await supabase
-            .from('gftvqueue_queues')
-            .update(updates)
-            .eq('id', queueId)
-            .select('id')
-            .single();
-
-        if (error) return res.status(500).json({
-            error: error.message
-        });
-        return res.status(200).json({
-            ok: true
-        });
+    if (!allowed) {
+        const isEditor = await isEventEditor(user.id, queueRow.event_id);
+        if (!isEditor) {
+            return response.status(403).json({ error: 'No access to this queue' });
+        }
     }
 
-    // ── DELETE ────────────────────────────────────────────────────────────────
-    if (req.method === 'DELETE') {
-        const {
-            isQueueAdmin
-        } = await canOperateQueue(user.id, queueId, user.is_admin);
-        if (!isQueueAdmin) return res.status(403).json({
-            error: 'Queue admin access required'
-        });
-
-        const {
-            error
-        } = await supabase.from('gftvqueue_queues').delete().eq('id', queueId);
-        if (error) return res.status(500).json({
-            error: error.message
-        });
-        return res.status(200).json({
-            message: 'Queue deleted'
-        });
+    let eventAccessCode = null;
+    if (queueRow.gftvqueue_events) {
+        eventAccessCode = queueRow.gftvqueue_events.access_code;
     }
+    const queue = {
+        name: queueRow.name,
+        status: queueRow.status,
+        access_code: queueRow.access_code,
+        max_serving: queueRow.max_serving,
+        event_access_code: eventAccessCode,
+    };
 
-    return res.status(405).json({
-        error: 'Method not allowed'
+    const { entries, completedCount } = await loadOperatorEntries(queueId);
+
+    return response.status(200).json({
+        queue: queue,
+        entries: entries,
+        completedCount: completedCount,
+        can_operate: allowed,
+        is_queue_admin: isQueueAdmin
     });
+}
+
+// The operator page's four columns. Called, waiting and missed list every
+// entry still in the queue, by number. Completed (decision 4) lists only the
+// last RECENT_COMPLETED_LIMIT finished entries, newest first; completedCount
+// is how many have finished in all.
+async function loadOperatorEntries(queueId) {
+    // Entries still in the queue: called, waiting and missed.
+    const { data: activeEntries } = await supabase
+        .from('gftvqueue_entries')
+        .select('id, queue_number, status, display_name, telegram_username, entered_at')
+        .eq('queue_id', queueId)
+        .in('status', ['serving', 'waiting', 'missed'])
+        .order('queue_number', { ascending: true });
+
+    const { count: completedCount } = await supabase
+        .from('gftvqueue_entries')
+        .select('id', { count: 'exact', head: true })
+        .eq('queue_id', queueId)
+        .eq('status', 'completed');
+
+    const { data: recentCompleted } = await supabase
+        .from('gftvqueue_entries')
+        .select('queue_number, display_name, telegram_username')
+        .eq('queue_id', queueId)
+        .eq('status', 'completed')
+        .order('completed_at', { ascending: false, nullsFirst: false })
+        .order('queue_number', { ascending: false })
+        .limit(RECENT_COMPLETED_LIMIT);
+
+    let rows = [];
+    if (activeEntries) {
+        rows = activeEntries;
+    }
+    let completedList = [];
+    if (recentCompleted) {
+        completedList = recentCompleted;
+    }
+    let finishedCount = 0;
+    if (completedCount) {
+        finishedCount = completedCount;
+    }
+
+    const grouped = {
+        serving: rows.filter((entry) => entry.status === 'serving').map(servingCardFields),
+        waiting: rows.filter((entry) => entry.status === 'waiting').map(entryCardFields),
+        missed: rows.filter((entry) => entry.status === 'missed').map(entryCardFields),
+        completed: completedList,
+    };
+
+    return { entries: grouped, completedCount: finishedCount };
+}
+
+// ── PUT: update queue settings ────────────────────────────────────────────────
+
+// Changes only the settings sent: name, description, max_serving and status.
+async function updateQueue(user, queueId, request, response) {
+    const { allowed } = await canOperateQueue(user.id, queueId, user.is_admin);
+    if (!allowed) {
+        return response.status(403).json({ error: 'No permission to edit this queue' });
+    }
+
+    let body = {};
+    if (request.body) {
+        body = request.body;
+    }
+    const updates = {};
+    if (body.name !== undefined) {
+        updates.name = body.name;
+    }
+    if (body.description !== undefined) {
+        updates.description = body.description;
+    }
+    if (body.max_serving !== undefined) {
+        updates.max_serving = body.max_serving;
+    }
+    if (body.status !== undefined) {
+        updates.status = body.status;
+    }
+
+    // .select('id').single() keeps the error for a queue that doesn't
+    // exist. The page reads nothing back (rule F2).
+    const { error } = await supabase
+        .from('gftvqueue_queues')
+        .update(updates)
+        .eq('id', queueId)
+        .select('id')
+        .single();
+
+    if (error) {
+        return response.status(500).json({ error: error.message });
+    }
+    return response.status(200).json({ ok: true });
+}
+
+// ── DELETE ────────────────────────────────────────────────────────────────────
+
+async function deleteQueue(user, queueId, response) {
+    const { isQueueAdmin } = await canOperateQueue(user.id, queueId, user.is_admin);
+    if (!isQueueAdmin) {
+        return response.status(403).json({ error: 'Queue admin access required' });
+    }
+
+    const { error } = await supabase.from('gftvqueue_queues').delete().eq('id', queueId);
+    if (error) {
+        return response.status(500).json({ error: error.message });
+    }
+    return response.status(200).json({ message: 'Queue deleted' });
 }

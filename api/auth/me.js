@@ -1,24 +1,22 @@
-import {
-    handleCors,
-    requireAuth
-} from '../_auth.js';
-import {
-    supabase
-} from '../_supabase.js';
+import { handleCors, requireAuth } from '../_auth.js';
+import { supabase } from '../_supabase.js';
 
-export default async function handler(req, res) {
-    if (handleCors(req, res)) return;
-    if (req.method !== 'GET') return res.status(405).json({
-        error: 'Method not allowed'
-    });
+// The signed-in account's Telegram link, for the profile page.
+export default async function handler(request, response) {
+    if (handleCors(request, response)) {
+        return;
+    }
+    if (request.method !== 'GET') {
+        return response.status(405).json({ error: 'Method not allowed' });
+    }
 
-    const user = await requireAuth(req, res);
-    if (!user) return;
+    const user = await requireAuth(request, response);
+    if (!user) {
+        return;
+    }
 
     // Fetch telegram link status
-    const {
-        data: tgLink
-    } = await supabase
+    const { data: telegramLink } = await supabase
         .from('gftvqueue_telegram_links')
         .select('telegram_username, linked_at')
         .eq('user_id', user.id)
@@ -29,16 +27,16 @@ export default async function handler(req, res) {
     // the account from hq_user, saved at sign-in.
     let telegramUsername = null;
     let telegramLinkedAt = null;
-    if (tgLink && tgLink.telegram_username) {
-        telegramUsername = tgLink.telegram_username;
+    if (telegramLink && telegramLink.telegram_username) {
+        telegramUsername = telegramLink.telegram_username;
     }
-    if (tgLink && tgLink.linked_at) {
-        telegramLinkedAt = tgLink.linked_at;
+    if (telegramLink && telegramLink.linked_at) {
+        telegramLinkedAt = telegramLink.linked_at;
     }
 
-    return res.status(200).json({
+    return response.status(200).json({
         user: {
-            telegram_linked: !!tgLink,
+            telegram_linked: Boolean(telegramLink),
             telegram_username: telegramUsername,
             telegram_linked_at: telegramLinkedAt,
         },

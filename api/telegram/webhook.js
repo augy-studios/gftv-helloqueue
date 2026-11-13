@@ -8,75 +8,116 @@ import { supabase } from '../_supabase.js';
 import { handleCors } from '../_auth.js';
 import { sendTelegramMessage } from '../_telegram.js';
 
-export default async function handler(req, res) {
-    if (handleCors(req, res)) return;
-    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+// Checks the secret header, then answers one message: /start attend_<code>
+// or /attend <code> (attendee sign-in), /start or /help, /link <code>
+// (account link), and any other /command with "Unknown command". Telegram
+// always gets a 200 once the secret matches.
+export default async function handler(request, response) {
+    if (handleCors(request, response)) {
+        return;
+    }
+    if (request.method !== 'POST') {
+        return response.status(405).json({ error: 'Method not allowed' });
+    }
 
     // Fail closed: with no secret configured, anyone could post a fake update
     // in any Telegram user's name, so nothing is accepted until it is set.
     const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
     if (!expectedSecret) {
         console.error('[Telegram webhook] TELEGRAM_WEBHOOK_SECRET is not set, so every request is rejected. Set it in Vercel and pass the same value as secret_token to setWebhook.');
-        return res.status(403).json({ error: 'Forbidden' });
+        return response.status(403).json({ error: 'Forbidden' });
     }
-    if (!secretMatches(req.headers['x-telegram-bot-api-secret-token'], expectedSecret)) {
+    if (!secretMatches(request.headers['x-telegram-bot-api-secret-token'], expectedSecret)) {
         console.error('[Telegram webhook] Rejected a request with a missing or wrong X-Telegram-Bot-Api-Secret-Token header.');
-        return res.status(403).json({ error: 'Forbidden' });
+        return response.status(403).json({ error: 'Forbidden' });
     }
 
-    const update = req.body;
-    const message = update?.message;
+    const update = request.body;
+    let message = undefined;
+    if (update !== null && update !== undefined) {
+        message = update.message;
+    }
     // Only messages are handled here. Button presses (callback queries) are
     // ignored: the Leave and notification buttons are sent and handled by the
     // polling bot (bot/index.js), which checks that the presser owns the entry.
     // If this webhook ever handles them, it needs the same check.
-    if (!message) return res.status(200).end();
+    if (!message) {
+        return response.status(200).end();
+    }
 
-    const chatId = message.chat?.id;
-    const text = (message.text || '').trim();
-    const from = message.from || {};
+    let chatId = undefined;
+    if (message.chat !== null && message.chat !== undefined) {
+        chatId = message.chat.id;
+    }
+    let messageText = '';
+    if (message.text) {
+        messageText = message.text;
+    }
+    const text = messageText.trim();
+    let sender = {};
+    if (message.from) {
+        sender = message.from;
+    }
 
     // deep link + /attend
-    let code = null;
-    const startMatch = text.match(/^\/start\s+attend_([A-Z0-9]+)$/i);
-    const attendMatch = text.match(/^\/attend\s+([A-Z0-9]+)$/i);
-    if (startMatch) code = startMatch[1].toUpperCase();
-    else if (attendMatch) code = attendMatch[1].toUpperCase();
-
+    const code = attendCodeFrom(text);
     if (code) {
-        await handleAttendLogin(chatId, from, code);
-        return res.status(200).end();
+        await handleAttendLogin(chatId, sender, code);
+        return response.status(200).end();
     }
 
     if (text === '/start' || text === '/help') {
-        await sendTelegramMessage(chatId, [
-            `👋 *Welcome to GFTV HelloQueue!*`,
-            ``,
-            `Here's what I can do:`,
-            ``,
-            `🎟 */attend \\<CODE\\>* - Connect your Telegram to a queue session\\. Get the code from the queue page\\.`,
-            `🔗 */link \\<OTP\\>* - Link your Telegram to a HelloQueue dashboard account\\. Get the OTP from your dashboard settings\\.`,
-            `❓ */help* - Show this message\\.`,
-            ``,
-            `To join a queue, visit the queue link and tap *Connect Telegram*\\.`,
-        ].join('\n'), { parse_mode: 'MarkdownV2' });
-        return res.status(200).end();
+        await sendHelp(chatId);
+        return response.status(200).end();
     }
 
     const linkMatch = text.match(/^\/link\s+([A-Z0-9]+)$/i);
     if (linkMatch) {
-        await handleTelegramLink(chatId, from, linkMatch[1].toUpperCase());
-        return res.status(200).end();
+        await handleTelegramLink(chatId, sender, linkMatch[1].toUpperCase());
+        return response.status(200).end();
     }
 
     if (text.startsWith('/')) {
         await sendTelegramMessage(chatId, 'Unknown command\\. Use /help to see available commands\\.', { parse_mode: 'MarkdownV2' });
     }
 
-    return res.status(200).end();
+    return response.status(200).end();
 }
 
-async function handleAttendLogin(chatId, from, code) {
+// The sign-in code from "/start attend_<code>" (the queue page's deep link)
+// or "/attend <code>", in upper case, or null for any other text.
+function attendCodeFrom(text) {
+    const startMatch = text.match(/^\/start\s+attend_([A-Z0-9]+)$/i);
+    const attendMatch = text.match(/^\/attend\s+([A-Z0-9]+)$/i);
+    if (startMatch) {
+        return startMatch[1].toUpperCase();
+    }
+    if (attendMatch) {
+        return attendMatch[1].toUpperCase();
+    }
+    return null;
+}
+
+// The /start and /help reply.
+async function sendHelp(chatId) {
+    await sendTelegramMessage(chatId, [
+        `👋 *Welcome to GFTV HelloQueue!*`,
+        ``,
+        `Here's what I can do:`,
+        ``,
+        `🎟 */attend \\<CODE\\>* - Connect your Telegram to a queue session\\. Get the code from the queue page\\.`,
+        `🔗 */link \\<OTP\\>* - Link your Telegram to a HelloQueue dashboard account\\. Get the OTP from your dashboard settings\\.`,
+        `❓ */help* - Show this message\\.`,
+        ``,
+        `To join a queue, visit the queue link and tap *Connect Telegram*\\.`,
+    ].join('\n'), { parse_mode: 'MarkdownV2' });
+}
+
+// Signs an attendee in from Telegram: checks the code the queue page showed,
+// replaces any earlier attendee session for this Telegram user with a new
+// one, and stores its token on the code for the page to collect. Replies in
+// the chat either way.
+async function handleAttendLogin(chatId, sender, code) {
     const now = new Date().toISOString();
 
     const { data: loginCode } = await supabase
@@ -99,8 +140,17 @@ async function handleAttendLogin(chatId, from, code) {
     }
 
     const telegramUserId = chatId;
-    const displayName = [from.first_name, from.last_name].filter(Boolean).join(' ') || from.username || 'Attendee';
-    const telegramUsername = from.username || null;
+    const fullName = [sender.first_name, sender.last_name].filter(Boolean).join(' ');
+    let displayName = 'Attendee';
+    if (fullName) {
+        displayName = fullName;
+    } else if (sender.username) {
+        displayName = sender.username;
+    }
+    let telegramUsername = null;
+    if (sender.username) {
+        telegramUsername = sender.username;
+    }
 
     // enforce single session
     await supabase
@@ -134,13 +184,16 @@ async function handleAttendLogin(chatId, from, code) {
     );
 }
 
-async function handleTelegramLink(chatId, from, otp) {
+// Links a dashboard account to this Telegram user with the one-time code
+// from the profile page. Any earlier link for either side is removed first.
+// Replies in the chat either way.
+async function handleTelegramLink(chatId, sender, otpCode) {
     const now = new Date().toISOString();
 
     const { data: otpRow } = await supabase
         .from('gftvqueue_telegram_otps')
         .select('id, user_id, expires_at, used_at')
-        .eq('otp_code', otp)
+        .eq('otp_code', otpCode)
         .maybeSingle();
 
     if (!otpRow) {
@@ -153,7 +206,10 @@ async function handleTelegramLink(chatId, from, otp) {
     }
 
     const telegramUserId = chatId;
-    const telegramUsername = from.username || null;
+    let telegramUsername = null;
+    if (sender.username) {
+        telegramUsername = sender.username;
+    }
 
     // clear old links
     await supabase.from('gftvqueue_telegram_links').delete().eq('telegram_user_id', telegramUserId);

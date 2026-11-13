@@ -1,82 +1,75 @@
 // GET → public polling endpoint for the display screen (no auth required)
-import {
-    supabase
-} from '../../_supabase.js';
-import {
-    handleCors
-} from '../../_auth.js';
+import { supabase } from '../../_supabase.js';
+import { handleCors } from '../../_auth.js';
 
-export default async function handler(req, res) {
-    if (handleCors(req, res)) return;
-    if (req.method !== 'GET') return res.status(405).json({
-        error: 'Method not allowed'
-    });
+// The public display board: the queue numbers being served, waiting and
+// missed, the counts and a rough wait time. No names (decision 1).
+export default async function handler(request, response) {
+    if (handleCors(request, response)) {
+        return;
+    }
+    if (request.method !== 'GET') {
+        return response.status(405).json({ error: 'Method not allowed' });
+    }
 
-    const {
-        eventCode,
-        queueCode
-    } = req.query;
+    const { eventCode, queueCode } = request.query;
 
     // Resolve event
-    const {
-        data: event
-    } = await supabase
+    const { data: event } = await supabase
         .from('gftvqueue_events')
         .select('id, name')
         .eq('access_code', eventCode)
         .maybeSingle();
 
-    if (!event) return res.status(404).json({
-        error: 'Event not found'
-    });
+    if (!event) {
+        return response.status(404).json({ error: 'Event not found' });
+    }
 
     // Resolve queue
-    const {
-        data: queue
-    } = await supabase
+    const { data: queue } = await supabase
         .from('gftvqueue_queues')
         .select('id, name, status, max_serving, access_code')
         .eq('event_id', event.id)
         .eq('access_code', queueCode)
         .maybeSingle();
 
-    if (!queue) return res.status(404).json({
-        error: 'Queue not found'
-    });
+    if (!queue) {
+        return response.status(404).json({ error: 'Queue not found' });
+    }
 
     // Get entries grouped by status
-    const {
-        data: entries
-    } = await supabase
+    const { data: entries } = await supabase
         .from('gftvqueue_entries')
         .select('id, queue_number, status, display_name, entered_at')
         .eq('queue_id', queue.id)
         .not('status', 'eq', 'completed')
-        .order('queue_number', {
-            ascending: true
-        });
+        .order('queue_number', { ascending: true });
 
-    const servingEntries = (entries || []).filter(e => e.status === 'serving');
-    const serving = servingEntries.map(e => e.queue_number);
-    const serving_entries = servingEntries.map(e => ({ queue_number: e.queue_number, entered_at: e.entered_at }));
-    const waiting = (entries || []).filter(e => e.status === 'waiting').map(e => e.queue_number);
-    const missed = (entries || []).filter(e => e.status === 'missed').map(e => e.queue_number);
+    let liveEntries = [];
+    if (entries) {
+        liveEntries = entries;
+    }
+    const servingEntries = liveEntries.filter((entry) => entry.status === 'serving');
+    const servingNumbers = servingEntries.map((entry) => entry.queue_number);
+    const servingDetails = servingEntries.map((entry) => ({ queue_number: entry.queue_number, entered_at: entry.entered_at }));
+    const waitingNumbers = liveEntries.filter((entry) => entry.status === 'waiting').map((entry) => entry.queue_number);
+    const missedNumbers = liveEntries.filter((entry) => entry.status === 'missed').map((entry) => entry.queue_number);
 
-    const {
-        count: totalServed
-    } = await supabase
+    const { count: totalServed } = await supabase
         .from('gftvqueue_entries')
-        .select('id', {
-            count: 'exact',
-            head: true
-        })
+        .select('id', { count: 'exact', head: true })
         .eq('queue_id', queue.id)
         .eq('status', 'completed');
 
-    // Estimate wait time: assume 2 minutes per person ahead
-    const waitMinutes = waiting.length * 2;
+    let servedCount = 0;
+    if (totalServed) {
+        servedCount = totalServed;
+    }
 
-    return res.status(200).json({
+    // Estimate wait time: assume 2 minutes per person ahead
+    const waitMinutes = waitingNumbers.length * 2;
+
+    return response.status(200).json({
         event: {
             name: event.name
         },
@@ -85,12 +78,12 @@ export default async function handler(req, res) {
             name: queue.name,
             status: queue.status
         },
-        serving,
-        serving_entries,
-        waiting,
-        missed,
-        total_in_queue: waiting.length,
-        total_served: totalServed || 0,
+        serving: servingNumbers,
+        serving_entries: servingDetails,
+        waiting: waitingNumbers,
+        missed: missedNumbers,
+        total_in_queue: waitingNumbers.length,
+        total_served: servedCount,
         est_wait_minutes: waitMinutes,
         updated_at: new Date().toISOString(),
         join_url: `https://queue.gftv.asia/queue/${eventCode}/${queueCode}`,

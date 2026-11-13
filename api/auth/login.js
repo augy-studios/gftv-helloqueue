@@ -1,29 +1,29 @@
 import bcrypt from 'bcryptjs';
-import {
-    v4 as uuidv4
-} from 'uuid';
-import {
-    supabase
-} from '../_supabase.js';
-import {
-    handleCors
-} from '../_auth.js';
+import { v4 as generateUuid } from 'uuid';
+import { supabase } from '../_supabase.js';
+import { handleCors } from '../_auth.js';
 
-export default async function handler(req, res) {
-    if (handleCors(req, res)) return;
-    if (req.method !== 'POST') return res.status(405).json({
-        error: 'Method not allowed'
-    });
+// Signs in with a username and password. An account with two-factor sign-in
+// (TOTP) gets a session straight away only from a trusted device; otherwise
+// it gets a challenge token for /api/auth/totp-verify. Every other approved
+// account gets a session.
+export default async function handler(request, response) {
+    if (handleCors(request, response)) {
+        return;
+    }
+    if (request.method !== 'POST') {
+        return response.status(405).json({ error: 'Method not allowed' });
+    }
 
-    const {
-        username,
-        password,
-        device_token,
-    } = req.body || {};
+    let body = {};
+    if (request.body) {
+        body = request.body;
+    }
+    const username = body.username;
+    const password = body.password;
+    const deviceToken = body.device_token;
     if (!username || !password) {
-        return res.status(400).json({
-            error: 'Username and password are required'
-        });
+        return response.status(400).json({ error: 'Username and password are required' });
     }
 
     // Fetch user by username
@@ -37,25 +37,39 @@ export default async function handler(req, res) {
         .single();
 
     if (error || !user) {
-        return res.status(401).json({
-            error: 'Invalid credentials'
-        });
+        return response.status(401).json({ error: 'Invalid credentials' });
     }
 
     if (!user.is_approved) {
-        return res.status(403).json({
-            error: 'Account pending approval'
-        });
+        return response.status(403).json({ error: 'Account pending approval' });
     }
 
-    const valid = await bcrypt.compare(password, user.password_hash);
-    if (!valid) {
-        return res.status(401).json({
-            error: 'Invalid credentials'
-        });
+    const passwordMatches = await bcrypt.compare(password, user.password_hash);
+    if (!passwordMatches) {
+        return response.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Upgrade hash cost if stored at a higher round than current target
+    await lowerPasswordHashCost(user, password);
+
+    // If TOTP is enabled, check for a valid trusted device token first
+    if (user.totp_secret) {
+        if (deviceToken) {
+            const trusted = await isTrustedDevice(user.id, deviceToken);
+            if (trusted) {
+                // Trusted device — skip TOTP, issue session directly
+                return startSession(user, response);
+            }
+        }
+        return startTotpChallenge(user, response);
+    }
+
+    // Issue full session
+    return startSession(user, response);
+}
+
+// Upgrade hash cost if stored at a higher round than current target: a hash
+// made with more than 10 rounds is replaced by a 10-round hash.
+async function lowerPasswordHashCost(user, password) {
     const currentRounds = bcrypt.getRounds(user.password_hash);
     if (currentRounds > 10) {
         const newHash = await bcrypt.hash(password, 10);
@@ -64,60 +78,38 @@ export default async function handler(req, res) {
             .update({ password_hash: newHash })
             .eq('id', user.id);
     }
+}
 
-    // If TOTP is enabled, check for a valid trusted device token first
-    if (user.totp_secret) {
-        if (device_token) {
-            const { data: trusted } = await supabase
-                .from('gftvhello_trusted_devices')
-                .select('id, expires_at')
-                .eq('user_id', user.id)
-                .eq('device_token', device_token)
-                .single();
+// True when this device token belongs to the user and hasn't expired.
+async function isTrustedDevice(userId, deviceToken) {
+    const { data: trustedDevice } = await supabase
+        .from('gftvhello_trusted_devices')
+        .select('id, expires_at')
+        .eq('user_id', userId)
+        .eq('device_token', deviceToken)
+        .single();
 
-            if (trusted && new Date(trusted.expires_at) > new Date()) {
-                // Trusted device — skip TOTP, issue session directly
-                const token = uuidv4();
-                const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-                await supabase.from('gftvhello_sessions').insert({ user_id: user.id, token, expires_at: expiresAt });
-                return res.status(200).json({
-                    token,
-                    user: { id: user.id, username: user.username, display_name: user.display_name, is_admin: user.is_admin, is_editor: user.is_editor },
-                });
-            }
-        }
+    if (!trustedDevice) {
+        return false;
     }
+    return new Date(trustedDevice.expires_at) > new Date();
+}
 
-    if (user.totp_secret) {
-        const challengeToken = uuidv4();
-        const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-
-        await supabase.from('gftvhello_totp_challenges').insert({
-            token: challengeToken,
-            user_id: user.id,
-            expires_at: expiresAt,
-        });
-
-        return res.status(200).json({
-            requires_totp: true,
-            totp_token: challengeToken
-        });
-    }
-
-    // Issue full session
-    const token = uuidv4();
+// Starts a 7-day session and sends its token. The sign-in page keeps the
+// token and saves `user` as hq_user, which the dashboard reads (rule F2:
+// nothing else is sent).
+async function startSession(user, response) {
+    const token = generateUuid();
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days
 
     await supabase.from('gftvhello_sessions').insert({
         user_id: user.id,
-        token,
+        token: token,
         expires_at: expiresAt,
     });
 
-    // The sign-in page keeps the token and saves `user` as hq_user, which
-    // the dashboard reads (rule F2: nothing else is sent).
-    return res.status(200).json({
-        token,
+    return response.status(200).json({
+        token: token,
         user: {
             id: user.id,
             username: user.username,
@@ -125,5 +117,23 @@ export default async function handler(req, res) {
             is_admin: user.is_admin,
             is_editor: user.is_editor,
         },
+    });
+}
+
+// Starts a 10-minute two-factor challenge and sends its token, which the
+// sign-in page passes to /api/auth/totp-verify with the code.
+async function startTotpChallenge(user, response) {
+    const challengeToken = generateUuid();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+    await supabase.from('gftvhello_totp_challenges').insert({
+        token: challengeToken,
+        user_id: user.id,
+        expires_at: expiresAt,
+    });
+
+    return response.status(200).json({
+        requires_totp: true,
+        totp_token: challengeToken
     });
 }

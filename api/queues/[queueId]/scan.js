@@ -1,47 +1,49 @@
-// POST { token } → validate a one-time entry QR token
-import {
-    supabase
-} from '../../_supabase.js';
-import {
-    handleCors,
-    requireAuth
-} from '../../_auth.js';
-import {
-    sendTelegramMessage
-} from '../../_telegram.js';
+// POST { token, scan_type } → validate a one-time entry QR token.
+// scan_type 'entrance' confirms the attendee went in; anything else
+// (the default is 'exit') uses up the token and completes the entry.
+import { supabase } from '../../_supabase.js';
+import { handleCors, requireAuth } from '../../_auth.js';
+import { sendTelegramMessage } from '../../_telegram.js';
 
-export default async function handler(req, res) {
-    if (handleCors(req, res)) return;
-    if (req.method !== 'POST') return res.status(405).json({
-        error: 'Method not allowed'
-    });
+// Checks the scanner and the token, then confirms an entrance or an exit.
+// Every refusal sends { error, valid: false }.
+export default async function handler(request, response) {
+    if (handleCors(request, response)) {
+        return;
+    }
+    if (request.method !== 'POST') {
+        return response.status(405).json({ error: 'Method not allowed' });
+    }
 
-    const user = await requireAuth(req, res);
-    if (!user) return;
+    const user = await requireAuth(request, response);
+    if (!user) {
+        return;
+    }
 
-    const {
-        queueId
-    } = req.query;
-    const {
-        token,
-        scan_type = 'exit',
-    } = req.body || {};
-    if (!token) return res.status(400).json({
-        error: 'Token is required'
-    });
+    const { queueId } = request.query;
+    let body = {};
+    if (request.body) {
+        body = request.body;
+    }
+    const token = body.token;
+    let scanType = 'exit';
+    if (body.scan_type !== undefined) {
+        scanType = body.scan_type;
+    }
+    if (!token) {
+        return response.status(400).json({ error: 'Token is required' });
+    }
 
     // Check permission to operate
-    const allowed = user.is_admin || await (async () => {
-        const {
-            data
-        } = await supabase
-            .from('gftvqueue_queue_permissions')
-            .select('id').eq('queue_id', queueId).eq('user_id', user.id).maybeSingle();
-        return !!data;
-    })();
-    if (!allowed) return res.status(403).json({
-        error: 'No permission to scan for this queue'
-    });
+    let allowed = false;
+    if (user.is_admin) {
+        allowed = true;
+    } else {
+        allowed = await hasQueuePermission(user.id, queueId);
+    }
+    if (!allowed) {
+        return response.status(403).json({ error: 'No permission to scan for this queue' });
+    }
 
     // Fetch token
     const {
@@ -54,64 +56,76 @@ export default async function handler(req, res) {
         .maybeSingle();
 
     if (error || !tokenRow) {
-        return res.status(404).json({
-            error: 'Invalid QR code',
-            valid: false
-        });
+        return response.status(404).json({ error: 'Invalid QR code', valid: false });
     }
 
     const entry = tokenRow.gftvqueue_entries;
 
+    const problem = findScanProblem(tokenRow, entry, queueId);
+    if (problem) {
+        return response.status(problem.status).json({ error: problem.error, valid: false });
+    }
+
+    if (scanType === 'entrance') {
+        return confirmEntrance(entry, response);
+    }
+    return confirmExit(tokenRow, entry, response);
+}
+
+// True when the user has a permission row for this queue.
+async function hasQueuePermission(userId, queueId) {
+    const { data: permission } = await supabase
+        .from('gftvqueue_queue_permissions')
+        .select('id').eq('queue_id', queueId).eq('user_id', userId).maybeSingle();
+    return Boolean(permission);
+}
+
+// Why this token can't be scanned here, as { status, error }, or null when it
+// can. The scanner shows only the error (rule F2).
+function findScanProblem(tokenRow, entry, queueId) {
     // Make sure this token belongs to this queue
     if (entry.queue_id !== queueId) {
-        return res.status(400).json({
-            error: 'QR code does not belong to this queue',
-            valid: false
-        });
+        return { status: 400, error: 'QR code does not belong to this queue' };
     }
 
     // Already used
     if (tokenRow.used_at) {
-        return res.status(409).json({
-            error: 'This QR code has already been used',
-            valid: false
-        });
+        return { status: 409, error: 'This QR code has already been used' };
     }
 
-    // Entry must be in 'serving' state. The scanner shows only the error
-    // (rule F2).
+    // Entry must be in 'serving' state
     if (entry.status === 'missed') {
-        return res.status(400).json({
-            error: 'This attendee was marked as missed - they must rejoin the queue.',
-            valid: false,
-        });
+        return { status: 400, error: 'This attendee was marked as missed - they must rejoin the queue.' };
     }
 
     if (entry.status !== 'serving') {
-        return res.status(400).json({
-            error: `Entry is in state: ${entry.status}. Only 'serving' entries can be scanned.`,
-            valid: false,
-        });
+        return { status: 400, error: `Entry is in state: ${entry.status}. Only 'serving' entries can be scanned.` };
     }
 
-    if (scan_type === 'entrance') {
-        await supabase
-            .from('gftvqueue_entries')
-            .update({ entered_at: new Date().toISOString() })
-            .eq('id', entry.id);
+    return null;
+}
 
-        const tgMsg = `🚪 *Entrance confirmed!*\n\nNumber: *#${entry.queue_number}*\nName: ${entry.display_name}\n\nWelcome! Show this QR code again when you exit.`;
-        await sendTelegramMessage(entry.telegram_user_id, tgMsg);
+// Entrance scan: records when the attendee went in. The token stays valid
+// for the exit scan.
+async function confirmEntrance(entry, response) {
+    await supabase
+        .from('gftvqueue_entries')
+        .update({ entered_at: new Date().toISOString() })
+        .eq('id', entry.id);
 
-        return res.status(200).json({
-            valid: true,
-            message: 'Entrance confirmed.',
-            queue_number: entry.queue_number,
-            name: entry.display_name,
-        });
-    }
+    const telegramMessage = `🚪 *Entrance confirmed!*\n\nNumber: *#${entry.queue_number}*\nName: ${entry.display_name}\n\nWelcome! Show this QR code again when you exit.`;
+    await sendTelegramMessage(entry.telegram_user_id, telegramMessage);
 
-    // Exit scan — mark token used and complete the entry
+    return response.status(200).json({
+        valid: true,
+        message: 'Entrance confirmed.',
+        queue_number: entry.queue_number,
+        name: entry.display_name,
+    });
+}
+
+// Exit scan: marks the token used and completes the entry.
+async function confirmExit(tokenRow, entry, response) {
     await supabase
         .from('gftvqueue_entry_tokens')
         .update({ used_at: new Date().toISOString() })
@@ -122,10 +136,10 @@ export default async function handler(req, res) {
         .update({ status: 'completed', completed_at: new Date().toISOString() })
         .eq('id', entry.id);
 
-    const tgMsg = `✅ *Exit confirmed!*\n\nNumber: *#${entry.queue_number}*\nName: ${entry.display_name}\n\nThank you for visiting the Dealers' Den!`;
-    await sendTelegramMessage(entry.telegram_user_id, tgMsg);
+    const telegramMessage = `✅ *Exit confirmed!*\n\nNumber: *#${entry.queue_number}*\nName: ${entry.display_name}\n\nThank you for visiting the Dealers' Den!`;
+    await sendTelegramMessage(entry.telegram_user_id, telegramMessage);
 
-    return res.status(200).json({
+    return response.status(200).json({
         valid: true,
         message: 'Exit confirmed - marked complete.',
         queue_number: entry.queue_number,
