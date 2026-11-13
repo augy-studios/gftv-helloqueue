@@ -19,24 +19,39 @@
         // Pre-paint: land both theme axes before first paint, so every colour
         // block can select on both without an attribute-missing fallback.
         (function () {
-            var k = "gftv-helloqueue";
-            var m = localStorage.getItem(k + ".mode") || "light";
+            var appKey = "gftv-helloqueue";
+
+            // The stored preference: "light", "dark" or "time". Light when
+            // nothing is stored.
+            var mode = "light";
+            var storedMode = localStorage.getItem(appKey + ".mode");
+            if (storedMode) {
+                mode = storedMode;
+            }
 
             // Time based mode. Resolved here rather than in script.js because
             // that module runs after first paint, and an evening reader would
             // otherwise watch a light page turn dark. Keep the two hours in
             // step with LIGHT_FROM_HOUR and LIGHT_UNTIL_HOUR in script.js.
-            if (m === "time") {
-                var h = new Date().getHours();
-                m = h >= 9 && h < 18 ? "light" : "dark";
+            if (mode === "time") {
+                var currentHour = new Date().getHours();
+                if (currentHour >= 9 && currentHour < 18) {
+                    mode = "light";
+                } else {
+                    mode = "dark";
+                }
                 document.documentElement.setAttribute("data-mode-preference", "time");
-            } else if (m !== "dark") {
-                m = "light";
+            } else if (mode !== "dark") {
+                mode = "light";
             }
 
-            var c = localStorage.getItem(k + ".colorTheme") || "classic";
-            document.documentElement.setAttribute("data-mode", m);
-            document.documentElement.setAttribute("data-color-theme", c);
+            var colorTheme = "classic";
+            var storedColorTheme = localStorage.getItem(appKey + ".colorTheme");
+            if (storedColorTheme) {
+                colorTheme = storedColorTheme;
+            }
+            document.documentElement.setAttribute("data-mode", mode);
+            document.documentElement.setAttribute("data-color-theme", colorTheme);
         })();
     </script>
     <link rel="stylesheet" href="/style.css">
@@ -87,70 +102,75 @@
 
     <script type="module">
         import { initTheme, buildTopbar, requireLogin, getUser, api, toast, Icons, openThemeModal } from '/script.js';
-    import { renderEventsView } from '/views/events.js';
-    import { renderQueuesView } from '/views/queues.js';
-    import { renderProfileView } from '/views/profile.js';
-    import { renderAdminUsersView } from '/views/admin-users.js';
-    import { renderQueueOperatorView } from '/views/queue-operator.js';
-    import { buildOfficialBar } from '/official-bar.js';
+        import { renderEventsView } from '/views/events.js';
+        import { renderQueuesView } from '/views/queues.js';
+        import { renderProfileView } from '/views/profile.js';
+        import { renderAdminUsersView } from '/views/admin-users.js';
+        import { renderQueueOperatorView } from '/views/queue-operator.js';
+        import { buildOfficialBar } from '/official-bar.js';
 
-    initTheme();
-    buildOfficialBar();
-    if (!requireLogin()) throw new Error('not logged in');
-    buildTopbar(document.getElementById('topbar-root'));
- 
-    const user = getUser();
-    const mainContent = document.getElementById('main-content');
- 
-    // Inject icons
-    document.getElementById('nav-events-icon').innerHTML = Icons.calendar;
-    document.getElementById('nav-queues-icon').innerHTML = Icons.list;
-    document.getElementById('nav-profile-icon').innerHTML = Icons.user;
-    if (user?.is_admin) {
-      document.getElementById('nav-admin-section').style.display = 'block';
-      document.getElementById('nav-users-icon').innerHTML = Icons.users;
-    }
- 
-    // Router
-    const views = {
-      'events': renderEventsView,
-      'queues': renderQueuesView,
-      'profile': renderProfileView,
-      'admin-users': renderAdminUsersView,
-    };
- 
-    let currentView = 'events';
- 
-    function navigate(view, params = {}) {
-      currentView = view;
-      document.querySelectorAll('.sidebar-item').forEach(b => {
-        b.classList.toggle('active', b.dataset.view === view);
-      });
- 
-      const renderer = views[view];
-      if (renderer) {
-        renderer(mainContent, { user, navigate, ...params });
-      }
-    }
- 
-    // Listen for queue operator deep link
-    window.addEventListener('hq:openqueue', (e) => {
-      renderQueueOperatorView(mainContent, { user, navigate, queueId: e.detail.queueId, eventId: e.detail.eventId });
-    });
- 
-    document.querySelectorAll('.sidebar-item').forEach(btn => {
-      btn.addEventListener('click', () => navigate(btn.dataset.view));
-    });
- 
-    // Check URL for deep link
-    const path = window.location.pathname;
-    const queueMatch = path.match(/\/dashboard\/events\/([^/]+)\/queues\/([^/]+)/);
-    if (queueMatch) {
-      renderQueueOperatorView(mainContent, { user, navigate, eventId: queueMatch[1], queueId: queueMatch[2] });
-    } else {
-      navigate('events');
-    }
-  </script>
+        initTheme();
+        buildOfficialBar();
+        if (!requireLogin()) {
+            throw new Error('not logged in');
+        }
+        buildTopbar(document.getElementById('topbar-root'));
+
+        const user = getUser();
+        const mainContent = document.getElementById('main-content');
+
+        // Inject icons
+        document.getElementById('nav-events-icon').innerHTML = Icons.calendar;
+        document.getElementById('nav-queues-icon').innerHTML = Icons.list;
+        document.getElementById('nav-profile-icon').innerHTML = Icons.user;
+        if (user && user.is_admin) {
+            document.getElementById('nav-admin-section').style.display = 'block';
+            document.getElementById('nav-users-icon').innerHTML = Icons.users;
+        }
+
+        // Router: each sidebar view, by its data-view name.
+        const views = {
+            'events': renderEventsView,
+            'queues': renderQueuesView,
+            'profile': renderProfileView,
+            'admin-users': renderAdminUsersView,
+        };
+
+        let currentView = 'events';
+
+        // Shows a view in the main area and marks its sidebar button active.
+        // `viewOptions` are passed on to the view.
+        function navigate(view, viewOptions = {}) {
+            currentView = view;
+            document.querySelectorAll('.sidebar-item').forEach((sidebarButton) => {
+                sidebarButton.classList.toggle('active', sidebarButton.dataset.view === view);
+            });
+
+            const renderer = views[view];
+            if (renderer) {
+                renderer(mainContent, { user, navigate, ...viewOptions });
+            }
+        }
+
+        // Listen for queue operator deep link
+        window.addEventListener('hq:openqueue', (event) => {
+            renderQueueOperatorView(mainContent, { user, navigate, queueId: event.detail.queueId, eventId: event.detail.eventId });
+        });
+
+        document.querySelectorAll('.sidebar-item').forEach((sidebarButton) => {
+            sidebarButton.addEventListener('click', () => navigate(sidebarButton.dataset.view));
+        });
+
+        // Check URL for deep link: /dashboard/events/<eventId>/queues/<queueId>
+        // opens that queue's operator view.
+        const path = window.location.pathname;
+        const queueMatch = path.match(/\/dashboard\/events\/([^/]+)\/queues\/([^/]+)/);
+        if (queueMatch) {
+            renderQueueOperatorView(mainContent, { user, navigate, eventId: queueMatch[1], queueId: queueMatch[2] });
+        } else {
+            navigate('events');
+        }
+    </script>
 
     <script type="module" src="/sw-register.js"></script>
 

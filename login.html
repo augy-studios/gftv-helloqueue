@@ -19,24 +19,39 @@
         // Pre-paint: land both theme axes before first paint, so every colour
         // block can select on both without an attribute-missing fallback.
         (function () {
-            var k = "gftv-helloqueue";
-            var m = localStorage.getItem(k + ".mode") || "light";
+            var appKey = "gftv-helloqueue";
+
+            // The stored preference: "light", "dark" or "time". Light when
+            // nothing is stored.
+            var mode = "light";
+            var storedMode = localStorage.getItem(appKey + ".mode");
+            if (storedMode) {
+                mode = storedMode;
+            }
 
             // Time based mode. Resolved here rather than in script.js because
             // that module runs after first paint, and an evening reader would
             // otherwise watch a light page turn dark. Keep the two hours in
             // step with LIGHT_FROM_HOUR and LIGHT_UNTIL_HOUR in script.js.
-            if (m === "time") {
-                var h = new Date().getHours();
-                m = h >= 9 && h < 18 ? "light" : "dark";
+            if (mode === "time") {
+                var currentHour = new Date().getHours();
+                if (currentHour >= 9 && currentHour < 18) {
+                    mode = "light";
+                } else {
+                    mode = "dark";
+                }
                 document.documentElement.setAttribute("data-mode-preference", "time");
-            } else if (m !== "dark") {
-                m = "light";
+            } else if (mode !== "dark") {
+                mode = "light";
             }
 
-            var c = localStorage.getItem(k + ".colorTheme") || "classic";
-            document.documentElement.setAttribute("data-mode", m);
-            document.documentElement.setAttribute("data-color-theme", c);
+            var colorTheme = "classic";
+            var storedColorTheme = localStorage.getItem(appKey + ".colorTheme");
+            if (storedColorTheme) {
+                colorTheme = storedColorTheme;
+            }
+            document.documentElement.setAttribute("data-mode", mode);
+            document.documentElement.setAttribute("data-color-theme", colorTheme);
         })();
     </script>
     <link rel="stylesheet" href="/style.css">
@@ -117,143 +132,170 @@
         import { initTheme, buildTopbar, saveAuth, getToken, api, toast } from '/script.js';
         import { buildOfficialBar } from '/official-bar.js';
 
-    initTheme();
-    buildOfficialBar();
-    buildTopbar(document.getElementById('topbar-root'));
+        initTheme();
+        buildOfficialBar();
+        buildTopbar(document.getElementById('topbar-root'));
 
-    if (getToken()) window.location.href = '/dashboard';
-
-    const form = document.getElementById('login-form');
-    const errEl = document.getElementById('login-error');
-    const btn = document.getElementById('login-btn');
-
-    const totpModal = document.getElementById('totp-modal');
-    const totpInput = document.getElementById('totp-code');
-    const totpErr = document.getElementById('totp-error');
-    const totpBtn = document.getElementById('totp-submit-btn');
-    let pendingTotpToken = null;
-
-    function openTotpModal(token) {
-      pendingTotpToken = token;
-      totpInput.value = '';
-      totpErr.style.display = 'none';
-      totpModal.classList.add('open');
-      setTimeout(() => totpInput.focus(), 50);
-    }
-
-    function closeTotpModal() {
-      totpModal.classList.remove('open');
-      pendingTotpToken = null;
-      btn.disabled = false;
-      btn.textContent = 'Sign in';
-    }
-
-    document.getElementById('totp-cancel-btn').addEventListener('click', closeTotpModal);
-
-    let backupMode = false;
-    const toggleBtn = document.getElementById('totp-toggle-backup');
-    const codeLabel = document.getElementById('totp-code-label');
-
-    toggleBtn.addEventListener('click', () => {
-      backupMode = !backupMode;
-      totpInput.value = '';
-      if (backupMode) {
-        totpInput.setAttribute('inputmode', 'text');
-        totpInput.removeAttribute('pattern');
-        totpInput.setAttribute('maxlength', '20');
-        totpInput.placeholder = 'XXXX-XXXX-XXXX';
-        totpInput.style.fontSize = '1.1rem';
-        codeLabel.textContent = 'Backup Code';
-        toggleBtn.textContent = 'Use authenticator app instead';
-      } else {
-        totpInput.setAttribute('inputmode', 'numeric');
-        totpInput.setAttribute('pattern', '[0-9 ]*');
-        totpInput.setAttribute('maxlength', '7');
-        totpInput.placeholder = '000 000';
-        totpInput.style.fontSize = '1.5rem';
-        codeLabel.textContent = 'Authentication Code';
-        toggleBtn.textContent = 'Use a backup code instead';
-      }
-      totpInput.focus();
-    });
-
-    // Auto-format as "000 000" in TOTP mode only
-    totpInput.addEventListener('input', () => {
-      if (backupMode) return;
-      const digits = totpInput.value.replace(/\D/g, '').slice(0, 6);
-      totpInput.value = digits.length > 3 ? digits.slice(0, 3) + ' ' + digits.slice(3) : digits;
-    });
-
-    totpBtn.addEventListener('click', async () => {
-      const code = totpInput.value.replace(/\s/g, '');
-      if (!backupMode && code.length !== 6) {
-        totpErr.textContent = 'Please enter a 6-digit code';
-        totpErr.style.display = 'block';
-        return;
-      }
-      if (backupMode && code.length < 4) {
-        totpErr.textContent = 'Please enter your backup code';
-        totpErr.style.display = 'block';
-        return;
-      }
-      totpErr.style.display = 'none';
-      totpBtn.disabled = true;
-      totpBtn.textContent = 'Verifying…';
-      try {
-        const trustDevice = document.getElementById('totp-trust-device').checked;
-        const data = await api('/auth/totp-verify', {
-          method: 'POST',
-          body: { totp_token: pendingTotpToken, code, trust_device: trustDevice },
-        });
-        if (data.device_token) {
-          localStorage.setItem('hq_device_token', data.device_token);
-        }
-        saveAuth(data.token, data.user);
-        window.location.href = '/dashboard';
-      } catch (err) {
-        totpErr.textContent = err.message;
-        totpErr.style.display = 'block';
-        totpBtn.disabled = false;
-        totpBtn.textContent = 'Verify';
-        totpInput.select();
-      }
-    });
-
-    totpInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') totpBtn.click();
-    });
-
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      errEl.style.display = 'none';
-      btn.disabled = true;
-      btn.textContent = 'Signing in…';
-
-      try {
-        const data = await api('/auth/login', {
-          method: 'POST',
-          body: {
-            username: document.getElementById('username').value.trim().toLowerCase(),
-            password: document.getElementById('password').value,
-            device_token: localStorage.getItem('hq_device_token') || undefined,
-          },
-        });
-
-        if (data.requires_totp) {
-          openTotpModal(data.totp_token);
-          return;
+        if (getToken()) {
+            window.location.href = '/dashboard';
         }
 
-        saveAuth(data.token, data.user);
-        window.location.href = '/dashboard';
-      } catch (err) {
-        errEl.textContent = err.message;
-        errEl.style.display = 'block';
-        btn.disabled = false;
-        btn.textContent = 'Sign in';
-      }
-    });
-  </script>
+        const form = document.getElementById('login-form');
+        const loginErrorMessage = document.getElementById('login-error');
+        const signInButton = document.getElementById('login-btn');
+
+        const totpModal = document.getElementById('totp-modal');
+        const totpInput = document.getElementById('totp-code');
+        const totpErrorMessage = document.getElementById('totp-error');
+        const totpSubmitButton = document.getElementById('totp-submit-btn');
+        let pendingTotpToken = null;
+
+        function openTotpModal(token) {
+            pendingTotpToken = token;
+            totpInput.value = '';
+            totpErrorMessage.style.display = 'none';
+            totpModal.classList.add('open');
+            setTimeout(() => totpInput.focus(), 50);
+        }
+
+        function closeTotpModal() {
+            totpModal.classList.remove('open');
+            pendingTotpToken = null;
+            signInButton.disabled = false;
+            signInButton.textContent = 'Sign in';
+        }
+
+        document.getElementById('totp-cancel-btn').addEventListener('click', closeTotpModal);
+
+        // The modal takes either a 6-digit code from an authenticator app or a
+        // backup code. This button switches the input between the two.
+        let backupMode = false;
+        const backupToggleButton = document.getElementById('totp-toggle-backup');
+        const codeLabel = document.getElementById('totp-code-label');
+
+        backupToggleButton.addEventListener('click', () => {
+            backupMode = !backupMode;
+            totpInput.value = '';
+            if (backupMode) {
+                totpInput.setAttribute('inputmode', 'text');
+                totpInput.removeAttribute('pattern');
+                totpInput.setAttribute('maxlength', '20');
+                totpInput.placeholder = 'XXXX-XXXX-XXXX';
+                totpInput.style.fontSize = '1.1rem';
+                codeLabel.textContent = 'Backup Code';
+                backupToggleButton.textContent = 'Use authenticator app instead';
+            } else {
+                totpInput.setAttribute('inputmode', 'numeric');
+                totpInput.setAttribute('pattern', '[0-9 ]*');
+                totpInput.setAttribute('maxlength', '7');
+                totpInput.placeholder = '000 000';
+                totpInput.style.fontSize = '1.5rem';
+                codeLabel.textContent = 'Authentication Code';
+                backupToggleButton.textContent = 'Use a backup code instead';
+            }
+            totpInput.focus();
+        });
+
+        // Auto-format as "000 000" in TOTP mode only
+        totpInput.addEventListener('input', () => {
+            if (backupMode) {
+                return;
+            }
+            const digits = totpInput.value.replace(/\D/g, '').slice(0, 6);
+            if (digits.length > 3) {
+                totpInput.value = digits.slice(0, 3) + ' ' + digits.slice(3);
+            } else {
+                totpInput.value = digits;
+            }
+        });
+
+        // Verify: checks the code's length, then sends it with the pending
+        // sign-in's token. On success it saves the session (and the device
+        // token, when "Trust this device" is ticked) and opens the dashboard.
+        totpSubmitButton.addEventListener('click', async () => {
+            const code = totpInput.value.replace(/\s/g, '');
+            if (!backupMode && code.length !== 6) {
+                totpErrorMessage.textContent = 'Please enter a 6-digit code';
+                totpErrorMessage.style.display = 'block';
+                return;
+            }
+            if (backupMode && code.length < 4) {
+                totpErrorMessage.textContent = 'Please enter your backup code';
+                totpErrorMessage.style.display = 'block';
+                return;
+            }
+            totpErrorMessage.style.display = 'none';
+            totpSubmitButton.disabled = true;
+            totpSubmitButton.textContent = 'Verifying…';
+            try {
+                const trustDevice = document.getElementById('totp-trust-device').checked;
+                const data = await api('/auth/totp-verify', {
+                    method: 'POST',
+                    body: { totp_token: pendingTotpToken, code, trust_device: trustDevice },
+                });
+                if (data.device_token) {
+                    localStorage.setItem('hq_device_token', data.device_token);
+                }
+                saveAuth(data.token, data.user);
+                window.location.href = '/dashboard';
+            } catch (error) {
+                totpErrorMessage.textContent = error.message;
+                totpErrorMessage.style.display = 'block';
+                totpSubmitButton.disabled = false;
+                totpSubmitButton.textContent = 'Verify';
+                totpInput.select();
+            }
+        });
+
+        totpInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                totpSubmitButton.click();
+            }
+        });
+
+        // Sign in: sends the username and password, with this device's trusted
+        // device token if it has one. An account with two-factor
+        // authentication gets the code modal next; any other success opens
+        // the dashboard.
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            loginErrorMessage.style.display = 'none';
+            signInButton.disabled = true;
+            signInButton.textContent = 'Signing in…';
+
+            try {
+                // Left undefined when there's no stored token, which leaves
+                // device_token out of the request.
+                let deviceToken;
+                const storedDeviceToken = localStorage.getItem('hq_device_token');
+                if (storedDeviceToken) {
+                    deviceToken = storedDeviceToken;
+                }
+
+                const data = await api('/auth/login', {
+                    method: 'POST',
+                    body: {
+                        username: document.getElementById('username').value.trim().toLowerCase(),
+                        password: document.getElementById('password').value,
+                        device_token: deviceToken,
+                    },
+                });
+
+                if (data.requires_totp) {
+                    openTotpModal(data.totp_token);
+                    return;
+                }
+
+                saveAuth(data.token, data.user);
+                window.location.href = '/dashboard';
+            } catch (error) {
+                loginErrorMessage.textContent = error.message;
+                loginErrorMessage.style.display = 'block';
+                signInButton.disabled = false;
+                signInButton.textContent = 'Sign in';
+            }
+        });
+    </script>
 
 
     <script type="module" src="/sw-register.js"></script>
