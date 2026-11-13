@@ -39,7 +39,7 @@ helloqueue/
 │   │   ├── attendee-login.js           # POST - new attendee sign-in code / GET - poll it: hands out the session token once, later polls get 410
 │   │   ├── login.js                    # POST - username + password login
 │   │   ├── logout.js                   # POST - delete session token
-│   │   ├── me.js                       # GET  - current user + telegram link status
+│   │   ├── me.js                       # GET  - the caller's Telegram link status
 │   │   └── register.js                 # POST - create account (pending approval)
 │   │
 │   ├── admin/
@@ -56,7 +56,7 @@ helloqueue/
 │   │
 │   ├── queues/
 │   │   ├── index.js                    # GET list (?event_id=), GET ?mine=1 (my queues) / POST create (event editor+)
-│   │   ├── [queueId].js                # GET (with grouped entries) / PUT / DELETE
+│   │   ├── [queueId].js                # GET (grouped entries, completedCount and the last 5 finished) / PUT / DELETE
 │   │   └── [queueId]/
 │   │       ├── join.js                 # POST - attendee joins queue
 │   │       ├── leave.js                # POST - attendee leaves queue
@@ -121,6 +121,8 @@ Who sees what:
 - **Events, event pages and editor lists:** a superadmin and the event's editors. Editors' emails
   are never sent.
 - **Staff** see only their own queues, and access codes only for their own queues.
+- Every response carries only what its page shows, plus the ids its buttons send (rule F2). Write
+  endpoints answer `{ ok: true }`. `tests/api/response-keys.test.mjs` pins the keys.
 
 ---
 
