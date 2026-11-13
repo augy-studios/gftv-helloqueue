@@ -46,12 +46,12 @@ export default async function handler(req, res) {
         error: 'No permission to operate this queue'
     });
 
-    // Fetch queue
+    // Fetch queue: its name for the Telegram messages, and the serving limit
     const {
         data: queue
     } = await supabase
         .from('gftvqueue_queues')
-        .select('*')
+        .select('name, max_serving')
         .eq('id', queueId)
         .single();
 

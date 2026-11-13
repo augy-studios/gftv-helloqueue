@@ -1,7 +1,9 @@
 // GET api/queues/[queueId].js.
 // H1 (fixed in job 02): only a superadmin, an editor of the queue's event, or
 // an admin or operator of that queue gets the queue; everyone else gets 403.
-// L1 records a known gap on purpose (job 03 trims the fields).
+// L1 (fixed in job 03, rule F2): only what the operator page shows is sent.
+// Decision 4 (job 03): the Completed column gets completedCount and only the
+// last few finished entries (tests/api/queue-completed.test.mjs).
 
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -64,7 +66,6 @@ test('unknown queue: 404', async () => {
 test('superadmin gets the queue, its entries grouped by status, and full rights', async () => {
     const response = await getQueue(IDS.queueA, SESSION_TOKENS.superadmin);
     assert.equal(response.status, 200);
-    assert.equal(response.body.queue.id, IDS.queueA);
     assert.equal(response.body.queue.name, 'Dealers Den (Queue A)');
     assert.equal(response.body.queue.event_access_code, 'EVNTCODE');
     assert.equal(response.body.queue.gftvqueue_events, undefined);
@@ -72,6 +73,7 @@ test('superadmin gets the queue, its entries grouped by status, and full rights'
     assert.deepEqual(numbers(response.body.entries.waiting), [5, 6]);
     assert.deepEqual(numbers(response.body.entries.missed), [2]);
     assert.deepEqual(numbers(response.body.entries.completed), [1]);
+    assert.equal(response.body.completedCount, 1);
     assert.equal(response.body.can_operate, true);
     assert.equal(response.body.is_queue_admin, true);
 });
@@ -108,18 +110,36 @@ test('entries never carry the attendee telegram_user_id', async () => {
     }
 });
 
-test('queries: the queue with its event code, the permission check, then the entries by number', async () => {
+test('queries: the queue with its event code, the permission check, then the entries', async () => {
     await getQueue(IDS.queueA, SESSION_TOKENS.operator);
     assert.deepEqual(callsOn(database, 'gftvqueue_queues'), [[
-        ['select', '*, gftvqueue_events(access_code)', {}],
+        ['select', 'event_id, name, status, access_code, max_serving, gftvqueue_events(access_code)', {}],
         ['eq', 'id', IDS.queueA],
         ['single'],
     ]]);
-    assert.deepEqual(callsOn(database, 'gftvqueue_entries'), [[
-        ['select', 'id, queue_number, status, display_name, telegram_username, joined_at, called_at, entered_at', {}],
-        ['eq', 'queue_id', IDS.queueA],
-        ['order', 'queue_number', { ascending: true }],
-    ]]);
+    // The live entries by number, then the finished ones (decision 4): a
+    // count, and the newest few.
+    assert.deepEqual(callsOn(database, 'gftvqueue_entries'), [
+        [
+            ['select', 'id, queue_number, status, display_name, telegram_username, entered_at', {}],
+            ['eq', 'queue_id', IDS.queueA],
+            ['in', 'status', ['serving', 'waiting', 'missed']],
+            ['order', 'queue_number', { ascending: true }],
+        ],
+        [
+            ['select', 'id', { count: 'exact', head: true }],
+            ['eq', 'queue_id', IDS.queueA],
+            ['eq', 'status', 'completed'],
+        ],
+        [
+            ['select', 'queue_number, display_name, telegram_username', {}],
+            ['eq', 'queue_id', IDS.queueA],
+            ['eq', 'status', 'completed'],
+            ['order', 'completed_at', { ascending: false, nullsFirst: false }],
+            ['order', 'queue_number', { ascending: false }],
+            ['limit', 5],
+        ],
+    ]);
     assert.deepEqual(callsOn(database, 'gftvqueue_queue_permissions'), [[
         ['select', 'is_queue_admin', {}],
         ['eq', 'queue_id', IDS.queueA],
@@ -130,6 +150,8 @@ test('queries: the queue with its event code, the permission check, then the ent
     assert.deepEqual(database.queries.map((query) => query.table).filter((table) => table.startsWith('gftvqueue_')), [
         'gftvqueue_queues',
         'gftvqueue_queue_permissions',
+        'gftvqueue_entries',
+        'gftvqueue_entries',
         'gftvqueue_entries',
     ]);
 });
@@ -163,10 +185,11 @@ test('H1: queue admin of queue B cannot read queue A: 403', async () => {
 // H1: an editor of the queue's event reads every queue in it, without
 // operate rights (they have no permission row).
 test('H1: event editor reads queue A and queue B, without operate rights', async () => {
+    const names = { [IDS.queueA]: 'Dealers Den (Queue A)', [IDS.queueB]: 'Photo Booth (Queue B)' };
     for (const queueId of [IDS.queueA, IDS.queueB]) {
         const response = await getQueue(queueId, SESSION_TOKENS.editor);
         assert.equal(response.status, 200);
-        assert.equal(response.body.queue.id, queueId);
+        assert.equal(response.body.queue.name, names[queueId]);
         assert.equal(response.body.can_operate, false);
         assert.equal(response.body.is_queue_admin, false);
     }
@@ -198,24 +221,25 @@ test('unknown queue as an account with no roles: 404', async () => {
     assert.equal(response.status, 404);
 });
 
-// L1 (F2): the response carries fields the operator page doesn't show: the
-// whole queue row and each entry's joined_at and called_at.
-test('L1: GET returns the whole queue row and joined_at/called_at per entry', async () => {
+// L1 (fixed, F2): the response used to carry the whole queue row and each
+// entry's status, joined_at and called_at, which the operator page doesn't
+// show. tests/api/response-keys.test.mjs pins every key.
+test('L1: GET returns only what the operator page shows', async () => {
     const response = await getQueue(IDS.queueA, SESSION_TOKENS.operator);
     assert.deepEqual(Object.keys(response.body.queue).sort(), [
-        'access_code', 'created_at', 'created_by', 'description', 'event_access_code',
-        'event_id', 'id', 'max_serving', 'name', 'status', 'updated_at',
+        'access_code', 'event_access_code', 'max_serving', 'name', 'status',
     ]);
     assert.deepEqual(Object.keys(response.body.entries.serving[0]).sort(), [
-        'called_at', 'display_name', 'entered_at', 'id', 'joined_at', 'queue_number',
-        'status', 'telegram_username',
+        'display_name', 'entered_at', 'id', 'queue_number', 'telegram_username',
     ]);
 });
 
-test('completed entries come back in full, not as a count (decision 4 changes this later)', async () => {
+test('decision 4: finished entries come as a count and a short list, with names and @usernames', async () => {
     const response = await getQueue(IDS.queueA, SESSION_TOKENS.operator);
-    assert.equal(Array.isArray(response.body.entries.completed), true);
-    assert.equal(response.body.entries.completed[0].display_name, 'Alice Fox');
+    assert.equal(response.body.completedCount, 1);
+    assert.deepEqual(response.body.entries.completed, [
+        { queue_number: 1, display_name: 'Alice Fox', telegram_username: 'alice_fox' },
+    ]);
 });
 
 test('PATCH is not allowed: 405', async () => {

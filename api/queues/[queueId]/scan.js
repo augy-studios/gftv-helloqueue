@@ -78,13 +78,12 @@ export default async function handler(req, res) {
         });
     }
 
-    // Entry must be in 'serving' state
+    // Entry must be in 'serving' state. The scanner shows only the error
+    // (rule F2).
     if (entry.status === 'missed') {
         return res.status(400).json({
             error: 'This attendee was marked as missed - they must rejoin the queue.',
             valid: false,
-            name: entry.display_name,
-            queue_number: entry.queue_number,
         });
     }
 

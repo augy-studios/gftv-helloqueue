@@ -24,9 +24,11 @@ export default async function handler(req, res) {
             username
         } = req.query;
 
+        // What the users table shows, and the id its buttons send (rule F2).
+        // Still newest first, without sending created_at.
         let query = supabase
             .from('gftvhello_users')
-            .select('id, username, display_name, email, is_admin, is_approved, is_editor, created_at')
+            .select('id, username, display_name, email, is_admin, is_approved, is_editor')
             .order('created_at', {
                 ascending: false
             });
@@ -71,21 +73,22 @@ export default async function handler(req, res) {
         if (is_admin !== undefined) updates.is_admin = is_admin;
         if (is_editor !== undefined) updates.is_editor = is_editor;
 
+        // .select('id').single() keeps the error for a user that doesn't
+        // exist. The page reloads the table and reads nothing back (rule F2).
         const {
-            data,
             error
         } = await supabase
             .from('gftvhello_users')
             .update(updates)
             .eq('id', user_id)
-            .select('id, username, display_name, is_approved, is_admin, is_editor')
+            .select('id')
             .single();
 
         if (error) return res.status(500).json({
             error: error.message
         });
         return res.status(200).json({
-            user: data
+            ok: true
         });
     }
 

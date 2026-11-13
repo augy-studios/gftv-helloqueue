@@ -132,7 +132,9 @@ export default async function handler(req, res) {
         });
 
         // A superadmin or an editor of the event gets every queue in it,
-        // with access codes.
+        // with access codes. No page calls this list today (the event page
+        // gets its queues from GET /api/events/:id), so it sends only what
+        // that page's queue cards show (rule F2).
         const editor = await canEditEvent(user.id, event_id, user.is_admin);
         if (editor) {
             const {
@@ -140,7 +142,7 @@ export default async function handler(req, res) {
                 error
             } = await supabase
                 .from('gftvqueue_queues')
-                .select('id, event_id, name, description, status, access_code, max_serving, created_by, created_at')
+                .select('id, name, status, access_code, max_serving')
                 .eq('event_id', event_id)
                 .order('created_at', {
                     ascending: true
@@ -172,7 +174,7 @@ export default async function handler(req, res) {
             error
         } = await supabase
             .from('gftvqueue_queues')
-            .select('id, event_id, name, description, status, max_serving, created_by, created_at')
+            .select('id, name, status, max_serving')
             .eq('event_id', event_id)
             .in('id', queueIds)
             .order('created_at', {
@@ -222,6 +224,7 @@ export default async function handler(req, res) {
             attempts++;
         }
 
+        // Only the new queue's id is read back, for the permission row below.
         const {
             data: queue,
             error
@@ -235,7 +238,7 @@ export default async function handler(req, res) {
                 access_code,
                 created_by: user.id,
             })
-            .select()
+            .select('id')
             .single();
 
         if (error) return res.status(500).json({
@@ -250,8 +253,9 @@ export default async function handler(req, res) {
             granted_by: user.id,
         });
 
+        // The event page reloads and reads nothing back (rule F2).
         return res.status(201).json({
-            queue
+            ok: true
         });
     }
 

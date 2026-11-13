@@ -32,6 +32,7 @@ async function loadOperatorView(container, user, navigate, queueId, eventId, sil
         const {
             queue,
             entries,
+            completedCount,
             can_operate,
             is_queue_admin
         } = await api(`/queues/${queueId}`);
@@ -39,21 +40,23 @@ async function loadOperatorView(container, user, navigate, queueId, eventId, sil
         const servingList = entries.serving || [];
         const waitingList = entries.waiting || [];
         const missedList = entries.missed || [];
+        // Only the last few finished entries (decision 4); completedCount is
+        // how many have finished in all.
         const completedList = entries.completed || [];
 
         if (!silent) {
-            container.innerHTML = buildOperatorHTML(queue, servingList, waitingList, missedList, completedList, can_operate, is_queue_admin, user, eventId);
+            container.innerHTML = buildOperatorHTML(queue, servingList, waitingList, missedList, completedList, completedCount, can_operate, is_queue_admin, user, eventId);
             attachOperatorEvents(container, user, navigate, queueId, eventId, queue);
         } else {
-                updateCounts(servingList, waitingList, missedList, completedList);
-            updateColumns(container, servingList, waitingList, missedList, completedList);
+            updateCounts(servingList, waitingList, missedList, completedCount);
+            updateColumns(container, servingList, waitingList, missedList, completedList, completedCount);
         }
     } catch (err) {
         if (!silent) throw err;
     }
 }
 
-function buildOperatorHTML(queue, serving, waiting, missed, completed, can_operate, is_queue_admin, user, eventId) {
+function buildOperatorHTML(queue, serving, waiting, missed, completed, completedCount, can_operate, is_queue_admin, user, eventId) {
     return `
     <div>
       <div class="page-title" style="margin-bottom:12px;">
@@ -99,14 +102,14 @@ function buildOperatorHTML(queue, serving, waiting, missed, completed, can_opera
         &nbsp;·&nbsp; Serving: <span id="stat-serving">${serving.length}</span>/${queue.max_serving}
         &nbsp;·&nbsp; Waiting: <span id="stat-waiting">${waiting.length}</span>
         &nbsp;·&nbsp; Missed: <span id="stat-missed">${missed.length}</span>
-        &nbsp;·&nbsp; Done: <span id="stat-completed">${completed.length}</span>
+        &nbsp;·&nbsp; Done: <span id="stat-completed">${completedCount}</span>
       </div>
 
       <div class="queue-columns">
         ${buildCol('Serving', 'serving', serving, true)}
         ${buildCol('In Queue', 'waiting', waiting, false)}
         ${buildCol('Missed', 'missed', missed, false)}
-        ${buildCol('Completed', 'completed', completed, false)}
+        ${buildCompletedCol(completed, completedCount)}
       </div>
 
       <div class="modal-overlay" id="scanner-modal">
@@ -181,6 +184,35 @@ function buildCol(title, status, entries, isServing) {
   `;
 }
 
+// The Completed column (decision 4): the header shows how many have
+// finished in all, and the body lists only the last few, newest first.
+function buildCompletedCol(recentCompleted, completedCount) {
+    return `
+    <div class="queue-col col-completed">
+      <div class="queue-col-header">
+        <span>Completed</span>
+        <span class="status-pill completed" id="completed-count">${completedCount}</span>
+      </div>
+      <div class="queue-col-body" id="col-completed">
+        ${buildCompletedBody(recentCompleted, completedCount)}
+      </div>
+    </div>
+  `;
+}
+
+// The cards for the last few finished entries, with a note when there are
+// more finished than are listed.
+function buildCompletedBody(recentCompleted, completedCount) {
+    if (!recentCompleted.length) {
+        return `<div class="empty-state" style="padding:16px 0;font-size:0.8rem;">Empty</div>`;
+    }
+    let note = '';
+    if (completedCount > recentCompleted.length) {
+        note = `<div class="text-sm text-muted completed-recent-note" style="font-size:0.75rem;margin-bottom:6px;">Last ${recentCompleted.length} of ${completedCount}</div>`;
+    }
+    return note + recentCompleted.map(entry => buildEntryCard(entry, 'completed')).join('');
+}
+
 function buildEntryCard(entry, status) {
     let actions = '';
     if (status === 'serving') {
@@ -198,8 +230,13 @@ function buildEntryCard(entry, status) {
     } else if (status === 'missed') {
         actions = `<button class="entry-action-btn rejoin-btn" data-id="${entry.id}" title="Move back to waiting">${Icons.refresh}</button>`;
     }
+    // Finished entries come without an id: their cards have no buttons.
+    let entryIdAttribute = '';
+    if (entry.id) {
+        entryIdAttribute = ` data-entry-id="${entry.id}"`;
+    }
     return `
-    <div class="entry-card" data-entry-id="${entry.id}">
+    <div class="entry-card"${entryIdAttribute}>
       <div class="queue-number ${status}">${entry.queue_number}</div>
       <div class="entry-card-name" title="${entry.display_name}">
         ${entry.display_name}
@@ -210,7 +247,7 @@ function buildEntryCard(entry, status) {
   `;
 }
 
-function updateCounts(serving, waiting, missed, completed) {
+function updateCounts(serving, waiting, missed, completedCount) {
     const safe = (id, val) => {
         const el = document.getElementById(id);
         if (el) el.textContent = val;
@@ -218,10 +255,11 @@ function updateCounts(serving, waiting, missed, completed) {
     safe('stat-serving', serving.length);
     safe('stat-waiting', waiting.length);
     safe('stat-missed', missed.length);
-    safe('stat-completed', completed.length);
+    safe('stat-completed', completedCount);
+    safe('completed-count', completedCount);
 }
 
-function updateColumns(container, serving, waiting, missed, completed) {
+function updateColumns(container, serving, waiting, missed, completed, completedCount) {
     const update = (id, entries, status) => {
         const col = document.getElementById(`col-${status}`);
         if (!col) return;
@@ -233,7 +271,11 @@ function updateColumns(container, serving, waiting, missed, completed) {
     update('col-serving', serving, 'serving');
     update('col-waiting', waiting, 'waiting');
     update('col-missed', missed, 'missed');
-    update('col-completed', completed, 'completed');
+
+    const completedColumn = document.getElementById('col-completed');
+    if (completedColumn) {
+        completedColumn.innerHTML = buildCompletedBody(completed, completedCount);
+    }
 
     const ts = document.getElementById('last-updated');
     if (ts) ts.textContent = `Updated ${new Date().toLocaleTimeString()}`;

@@ -58,7 +58,6 @@ export default async function handler(req, res) {
     const password_hash = await bcrypt.hash(password, 10);
 
     const {
-        data: user,
         error
     } = await supabase
         .from('gftvhello_users')
@@ -68,9 +67,7 @@ export default async function handler(req, res) {
             email,
             password_hash,
             is_approved: false
-        })
-        .select('id, username, display_name')
-        .single();
+        });
 
     if (error) {
         console.error('Register error:', error);
@@ -79,12 +76,9 @@ export default async function handler(req, res) {
         });
     }
 
+    // The page shows its own success message and reads nothing back
+    // (rule F2).
     return res.status(201).json({
         message: 'Registration successful. Your account is pending admin approval.',
-        user: {
-            id: user.id,
-            username: user.username,
-            display_name: user.display_name
-        },
     });
 }

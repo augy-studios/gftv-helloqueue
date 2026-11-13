@@ -49,11 +49,11 @@ export default async function handler(req, res) {
             });
         }
 
+        // The profile page shows the code and when it expires, with its own
+        // instructions (rule F2).
         return res.status(200).json({
             otp_code,
             expires_at,
-            bot_username: 'GFTVHelloQueueBot',
-            instruction: `Send /link ${otp_code} to @GFTVHelloQueueBot on Telegram to link your account.`,
         });
     }
 

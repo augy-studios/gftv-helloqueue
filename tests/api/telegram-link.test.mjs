@@ -31,11 +31,10 @@ test('no token: 401', async () => {
     assert.equal(response.status, 401);
 });
 
-test('GET makes a 6-digit code, stores it for the caller, and names the bot', async () => {
+test('GET makes a 6-digit code and stores it for the caller', async () => {
     const response = await makeCode();
     assert.equal(response.status, 200);
     assert.match(response.body.otp_code, OTP_PATTERN);
-    assert.equal(response.body.bot_username, 'GFTVHelloQueueBot');
     const stored = database.rows('gftvqueue_telegram_otps');
     assert.equal(stored.length, 1);
     assert.equal(stored[0].otp_code, response.body.otp_code);

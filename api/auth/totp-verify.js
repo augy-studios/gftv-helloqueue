@@ -82,9 +82,10 @@ export default async function handler(req, res) {
         });
     }
 
+    // The sign-in page keeps the token and device_token, and saves `user` as
+    // hq_user (rule F2: nothing else is sent).
     return res.status(200).json({
         token,
-        expires_at: expiresAt,
         device_token,
         user: {
             id: user.id,

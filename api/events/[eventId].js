@@ -38,12 +38,14 @@ export default async function handler(req, res) {
             });
         }
 
+        // Only what the event page shows (rule F2). Its buttons use the
+        // event id from the URL, so the id isn't sent back.
         const {
             data: event,
             error
         } = await supabase
             .from('gftvqueue_events')
-            .select('*')
+            .select('name, status, venue, event_date, access_code')
             .eq('id', eventId)
             .single();
 
@@ -51,20 +53,22 @@ export default async function handler(req, res) {
             error: 'Event not found'
         });
 
-        // Get editors for this event
+        // Get editors for this event: each one's name and username, and the
+        // user_id the Remove button sends.
         const {
             data: editors
         } = await supabase
             .from('gftvqueue_event_editors')
-            .select('user_id, assigned_at, gftvhello_users(id, username, display_name)')
+            .select('user_id, gftvhello_users(username, display_name)')
             .eq('event_id', eventId);
 
-        // Get queues
+        // Get queues: what each queue card shows, and the id its Operate
+        // button sends.
         const {
             data: queues
         } = await supabase
             .from('gftvqueue_queues')
-            .select('id, name, status, access_code, max_serving, created_at')
+            .select('id, name, status, access_code, max_serving')
             .eq('event_id', eventId)
             .order('created_at', {
                 ascending: true
@@ -97,21 +101,22 @@ export default async function handler(req, res) {
         if (event_date !== undefined) updates.event_date = event_date;
         if (status !== undefined) updates.status = status;
 
+        // .select('id').single() keeps the error for an event that doesn't
+        // exist. The events page reads nothing back (rule F2).
         const {
-            data,
             error
         } = await supabase
             .from('gftvqueue_events')
             .update(updates)
             .eq('id', eventId)
-            .select()
+            .select('id')
             .single();
 
         if (error) return res.status(500).json({
             error: error.message
         });
         return res.status(200).json({
-            event: data
+            ok: true
         });
     }
 
