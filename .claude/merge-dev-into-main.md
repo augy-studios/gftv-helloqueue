@@ -2,16 +2,16 @@
 
 Context for whoever merges this repo's `dev` branch into `main`. Augy, give this file to Claude: "Read `.claude/merge-dev-into-main.md` and help me merge `dev` into `main`."
 
-- **What's on `dev`:** the readable-refactor chain for help desk #21, one squash commit per job. 2 of 9 jobs have landed so far.
+- **What's on `dev`:** the readable-refactor chain for help desk #21, one squash commit per job. 4 of 9 jobs have landed so far.
 - **What merging does:** Merging into `main` deploys the site and API on Vercel. The Telegram bot in `bot/` runs on the VPS and needs a pull and restart there.
-- **Kept up to date:** the coordinator (Thomas's workspace) updates this file each time a job lands, and once more just before opening the pull request. Last updated 13 Nov, 15:37 SGT.
+- **Kept up to date:** the coordinator (Thomas's workspace) updates this file each time a job lands, and once more just before opening the pull request. Last updated 13 Nov, 15:58 SGT.
 
 ## Claude: how to run the merge
 
 Work through these in order, and stop to ask Augy wherever a step says so.
 
 1. **Read first:** this file, then `README.md`. Never read, print or copy a `.env` or `token.env` file; use the `.example` files.
-2. **Check `dev` matches this file:** `git fetch origin`, then `git log --oneline origin/main..origin/dev`. Every commit in the Jobs table below should be there. Read the message of any commit the table doesn't list (`git show <sha>`) and tell Augy what it is.
+2. **Check `dev` matches this file:** `git fetch origin`, then `git log --oneline origin/main..origin/dev`. Every commit in the Jobs table below should be there. Commits titled "Merge context" only update this file. Read the message of any other commit the table doesn't list (`git show <sha>`) and tell Augy what it is.
 3. **Run the tests** on a checkout of `dev` (commands below). All must pass. If one fails, stop and tell Augy; don't fix it on `main`.
 4. **Go through "Before merging"** with Augy. Steps marked as his (Vercel settings, the database) are his to do by hand; ask him to confirm each one.
 5. **The pull request:** `gh pr list --base main --head dev`. Thomas's side opens it once the last job lands. If Augy wants to ship before that, open it yourself: `gh pr create --base main --head dev`, titled "Help desk #21: readable refactor", with the Jobs table as its body.
@@ -25,8 +25,8 @@ Work through these in order, and stop to ask Augy wherever a step says so.
 |---|---|---|
 | 01 | Test harness | `6e2458c` |
 | 02 | API isolation (H1, H2, M1–M3, M5, the registration filter, job 01's findings) | `a999f3b` |
-| 03 | Field minimisation and the completed column | to come |
-| 04 | Telegram bot and webhook | to come |
+| 03 | Field minimisation and the completed column | `65a0a8c` |
+| 04 | Telegram bot and webhook (H4, M4, dotenv) | `a09d995` |
 | 05 | Page fixes and analytics | to come |
 | 06 | Readability: api/ | to come |
 | 07 | Readability: views/ and script.js | to come |
@@ -47,11 +47,13 @@ They need no `.env`, network or real database.
 
 ## Before merging
 
+- **Webhook or polling bot?** Telegram sends updates to one or the other, never both. Ask Augy which is live. The webhook (`api/telegram/webhook.js`) handles fewer commands and no buttons; the VPS bot in `bot/` handles everything.
+- **If the webhook is live:** Augy sets `TELEGRAM_WEBHOOK_SECRET` in Vercel (1-256 characters of A-Z, a-z, 0-9, `_`, `-`) and re-registers the webhook with the same value as `secret_token` (README, Deployment §2; BotFather can't set it). Until both are done, the webhook answers 403 to every update.
 - **Database check:** in Supabase, confirm `gftvqueue_attendee_login_codes.session_token` accepts NULL. Job 02's sign-in change relies on it, and that table isn't in `schema.sql` until job 09.
 
 ## After merging
 
-- If `git diff origin/main origin/dev -- bot/` shows changes (jobs 04 and 08 touch it): pull `main` on the VPS and restart the Telegram bot.
+- If `git diff origin/main origin/dev -- bot/` shows changes (jobs 04 and 08 touch it): pull `main` on the VPS, run `npm install` in the bot's folder (job 04 adds `dotenv`), and restart the Telegram bot.
 
 ## Smoke test on the live site
 
