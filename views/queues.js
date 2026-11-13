@@ -23,38 +23,11 @@ async function loadMyQueues(container, user, navigate) {
     if (!listEl) return;
 
     try {
+        // The API returns only the queues this account can operate or
+        // administer, with event_name, event_access_code and is_queue_admin.
         const {
-            events
-        } = await api('/events');
-        if (!events.length) {
-            listEl.innerHTML = `<div class="empty-state">${Icons.list}<br>No queues found. You need to be assigned to an event first.</div>`;
-            return;
-        }
-
-        const allQueues = [];
-        for (const ev of events) {
-            const {
-                queues
-            } = await api(`/queues?event_id=${ev.id}`).catch(() => ({
-                queues: []
-            }));
-            for (const q of queues) {
-                const {
-                    permissions
-                } = await api(`/queues/${q.id}/permissions`).catch(() => ({
-                    permissions: []
-                }));
-                const myPerm = permissions.find(p => p.user_id === user.id);
-                if (myPerm || user.is_admin) {
-                    allQueues.push({
-                        ...q,
-                        event_name: ev.name,
-                        event_access_code: ev.access_code,
-                        is_queue_admin: myPerm?.is_queue_admin || user.is_admin
-                    });
-                }
-            }
-        }
+            queues: allQueues
+        } = await api('/queues?mine=1');
 
         if (!allQueues.length) {
             listEl.innerHTML = `<div class="empty-state">${Icons.list}<br>You don't have operator access to any queues yet.</div>`;

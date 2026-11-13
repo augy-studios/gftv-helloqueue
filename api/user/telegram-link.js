@@ -1,6 +1,9 @@
 // GET  → generate OTP for linking
 // DELETE → unlink Telegram account
 import {
+    randomInt
+} from 'crypto';
+import {
     supabase
 } from '../_supabase.js';
 import {
@@ -8,8 +11,9 @@ import {
     requireAuth
 } from '../_auth.js';
 
+// 6 digits, 100000-999999 (randomInt's upper bound is exclusive)
 function randomOtp() {
-    return String(Math.floor(100000 + Math.random() * 900000));
+    return String(randomInt(100000, 1000000));
 }
 
 export default async function handler(req, res) {

@@ -87,6 +87,8 @@ test('signed out: the page signs in by itself once the bot confirms the code', a
     await expect(page.locator('.toast')).toContainText('Connected!', { timeout: 6000 });
     await expect(page.locator('#join-btn')).toBeVisible();
     expect(await page.evaluate(() => window.localStorage.getItem('hq_attendee_token'))).toBe(ATTENDEE_TOKENS.newcomer);
+    // M5: the token was handed out once and cleared from the code row.
+    expect(api.database.rows('gftvqueue_attendee_login_codes').find((row) => row.code === code).session_token).toBeNull();
 });
 
 test('waiting attendee: turning off "next in line" alerts saves it', async ({ page, api }) => {

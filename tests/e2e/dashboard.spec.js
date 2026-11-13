@@ -64,10 +64,18 @@ test.describe('events view', () => {
     });
 });
 
+// M3 (job 02): My Queues asks GET /api/queues?mine=1 for the caller's own
+// queues, instead of reading every event's queues and every queue's staff
+// list and filtering them in the browser.
+function myQueuesCalls(api) {
+    return api.calls.filter((call) => call.path.startsWith('/api/queues') || call.path.startsWith('/api/events'));
+}
+
 test.describe('queues view (My Queues)', () => {
-    test('superadmin sees both queues with live counts', async ({ page }) => {
+    test('superadmin sees both queues with live counts', async ({ page, api }) => {
         await signInAs(page, 'superadmin');
         await page.goto('/dashboard');
+        await expect(page.locator('#events-grid .event-card')).toHaveCount(1);
         await page.click('#nav-queues');
         await expect(page.locator('.page-title')).toHaveText('My Queues');
         const cards = page.locator('#queues-list .event-card');
@@ -79,15 +87,53 @@ test.describe('queues view (My Queues)', () => {
         await expect(countsA).toContainText('Missed: 1');
         await expect(countsA).toContainText('Done: 1');
         await expect(page.locator(`#counts-${IDS.queueB}`)).toContainText('Serving: 1');
+        // The events view's own /api/events call, then one call for My Queues.
+        expect(myQueuesCalls(api).map((call) => `${call.method} ${call.path}`)).toEqual([
+            'GET /api/events',
+            'GET /api/queues',
+        ]);
     });
 
-    // B1: operators who aren't event editors get no events from /api/events,
-    // so My Queues is empty for them. Decision 1 changes this.
-    test('B1: operator of queue A sees the "assigned to an event first" empty state', async ({ page }) => {
+    // M3 (fixed, was job 01's B1): a pure operator, who isn't an event
+    // editor, now sees their own queue.
+    test('M3: operator of queue A sees queue A, and only queue A', async ({ page, api }) => {
         await signInAs(page, 'operator');
         await page.goto('/dashboard');
         await page.click('#nav-queues');
-        await expect(page.locator('#queues-list')).toContainText('You need to be assigned to an event first.');
+        const cards = page.locator('#queues-list .event-card');
+        await expect(cards).toHaveCount(1);
+        await expect(cards.first().locator('.event-card-title')).toHaveText('Dealers Den (Queue A)');
+        await expect(cards.first()).toContainText('Operator');
+        await expect(cards.first()).toContainText('Event: GFTV Test Con 2026');
+        await expect(cards.first()).toContainText(CODES.queueA);
+        await expect(cards.first().locator('a[href*="/display/"]')).toHaveAttribute(
+            'href',
+            `/display/${CODES.event}/${CODES.queueA}`
+        );
+        await expect(page.locator(`#counts-${IDS.queueA}`)).toContainText('Waiting: 2');
+        await expect(page.locator('#queues-list')).not.toContainText('Photo Booth');
+        // No staff lists are read from the browser any more.
+        expect(api.calls.some((call) => call.path.endsWith('/permissions'))).toBe(false);
+    });
+
+    test('M3: queue admin of queue B sees queue B as Queue Admin, and Operate opens it', async ({ page }) => {
+        await signInAs(page, 'queueAdmin');
+        await page.goto('/dashboard');
+        await page.click('#nav-queues');
+        const cards = page.locator('#queues-list .event-card');
+        await expect(cards).toHaveCount(1);
+        await expect(cards.first().locator('.event-card-title')).toHaveText('Photo Booth (Queue B)');
+        await expect(cards.first()).toContainText('Queue Admin');
+        await cards.first().locator('.operate-btn').click();
+        await expect(page.locator('.page-title')).toContainText('Photo Booth (Queue B)');
+        await expect(queueNumbers(page, 'serving')).toHaveText(['2']);
+    });
+
+    test('M3: an account with no roles sees the "no operator access" empty state', async ({ page }) => {
+        await signInAs(page, 'outsider');
+        await page.goto('/dashboard');
+        await page.click('#nav-queues');
+        await expect(page.locator('#queues-list')).toContainText("You don't have operator access to any queues yet.");
     });
 
     test('event editor without queue permissions sees the "no operator access" empty state', async ({ page }) => {
@@ -131,6 +177,25 @@ test.describe('queue operator view', () => {
         await expect(queueNumbers(page, 'serving')).toHaveText(['3', '4', '5']);
         await expect(queueNumbers(page, 'waiting')).toHaveText(['6']);
         expect(api.database.row('gftvqueue_entries', IDS.entryA5Waiting).status).toBe('serving');
+    });
+
+    // H1 (job 02): the queue endpoint refuses an operator of another queue,
+    // and the page says so instead of showing queue B.
+    test('H1: operator of queue A opening queue B\'s link sees "Failed to load queue"', async ({ page, consoleErrors }) => {
+        consoleErrors.allow('expected-403', (error) => error.text.includes('403'));
+        await signInAs(page, 'operator');
+        await page.goto(`/dashboard/events/${IDS.event}/queues/${IDS.queueB}`);
+        await expect(page.locator('#main-content')).toContainText('Failed to load queue: No access to this queue');
+        await expect(page.locator('#main-content')).not.toContainText('Gus Goat');
+    });
+
+    test('H1: event editor (no queue permission) can open a queue from the event page', async ({ page }) => {
+        await signInAs(page, 'editor');
+        await page.goto('/dashboard');
+        await page.click('.ev-open-btn');
+        await page.locator(`.operate-queue-btn[data-queue="${IDS.queueB}"]`).click();
+        await expect(page.locator('.page-title')).toContainText('Photo Booth (Queue B)');
+        await expect(queueNumbers(page, 'waiting')).toHaveText(['1']);
     });
 
     test('queue admin of queue B sees queue B as queue admin', async ({ page }) => {

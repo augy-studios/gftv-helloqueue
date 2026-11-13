@@ -22,6 +22,27 @@ async function isQueueAdmin(userId, queueId, isAdmin) {
     return data?.is_queue_admin === true;
 }
 
+// True when the user is an editor of the event this queue belongs to.
+async function isEditorOfQueueEvent(userId, queueId) {
+    const {
+        data: queue
+    } = await supabase
+        .from('gftvqueue_queues')
+        .select('event_id')
+        .eq('id', queueId)
+        .maybeSingle();
+    if (!queue) return false;
+    const {
+        data
+    } = await supabase
+        .from('gftvqueue_event_editors')
+        .select('id')
+        .eq('event_id', queue.event_id)
+        .eq('user_id', userId)
+        .maybeSingle();
+    return !!data;
+}
+
 export default async function handler(req, res) {
     if (handleCors(req, res)) return;
 
@@ -33,6 +54,16 @@ export default async function handler(req, res) {
     } = req.query;
 
     if (req.method === 'GET') {
+        // Only a superadmin, an admin of this queue, or an editor of the
+        // queue's event may list its staff.
+        const admin = await isQueueAdmin(user.id, queueId, user.is_admin);
+        if (!admin) {
+            const editor = await isEditorOfQueueEvent(user.id, queueId);
+            if (!editor) return res.status(403).json({
+                error: 'Queue admin or event editor access required'
+            });
+        }
+
         const {
             data,
             error

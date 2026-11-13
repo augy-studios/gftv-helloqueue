@@ -1,6 +1,8 @@
-// Baseline: api/events/[eventId].js (GET, PUT, DELETE), as the code behaves
-// today. Tests marked with a gap ID (H3, L3) record a known security gap on
-// purpose; job 02 changes them when it fixes the gap. B2 marks a bug.
+// api/events/[eventId].js (GET, PUT, DELETE).
+// M2 (fixed in job 02, job 01's H3): the event, its access code, its editors
+// and its queues go only to a superadmin or an editor of the event; no page
+// shows them to anyone else, so everyone else gets 403.
+// L3 records a known gap on purpose (job 03 trims the fields). B2 marks a bug.
 
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -53,20 +55,39 @@ test('B2: the editor list comes back empty because the editor embed is ambiguous
     assert.equal(editorQuery.result.error.code, 'PGRST201');
 });
 
-// H3: no access check on GET. Any signed-in account reads any event, with
-// every queue and its access code.
-test('H3: an account with no roles can read the event, its queues and their access codes', async () => {
+// M2 (fixed): an account with no roles gets 403 and no access codes.
+test('M2: an account with no roles cannot read the event: 403', async () => {
     const response = await getEvent(IDS.event, SESSION_TOKENS.outsider);
+    assert.equal(response.status, 403);
+    assert.deepEqual(response.body, { error: 'Event editor access required' });
+    assert.equal(database.queriesOn('gftvqueue_events').length, 0);
+    assert.equal(database.queriesOn('gftvqueue_queues').length, 0);
+});
+
+// M2 (fixed): staff of one queue don't get the event page, its access code
+// or the other queues (their page gets their queue from the queue endpoints).
+test('M2: operator of queue A and queue admin of queue B cannot read the event: 403', async () => {
+    for (const token of [SESSION_TOKENS.operator, SESSION_TOKENS.queueAdmin]) {
+        const response = await getEvent(IDS.event, token);
+        assert.equal(response.status, 403);
+        assert.equal(JSON.stringify(response.body).includes('EVNTCODE'), false);
+        assert.equal(JSON.stringify(response.body).includes('QUEUEBBB'), false);
+    }
+});
+
+// M2: the event's editor gets the full event, with every access code.
+test('M2: event editor gets the event, its access code and every queue code', async () => {
+    const response = await getEvent(IDS.event, SESSION_TOKENS.editor);
     assert.equal(response.status, 200);
     assert.equal(response.body.event.access_code, 'EVNTCODE');
     assert.deepEqual(response.body.queues.map((queue) => queue.access_code), ['QUEUEAAA', 'QUEUEBBB']);
 });
 
-// H3: same gap, for an operator: they see queue B as well as queue A.
-test('H3: operator of queue A also sees queue B in the event', async () => {
-    const response = await getEvent(IDS.event, SESSION_TOKENS.operator);
-    assert.equal(response.status, 200);
-    assert.deepEqual(response.body.queues.map((queue) => queue.id), [IDS.queueA, IDS.queueB]);
+// M2: an editor of another event gets 403 for this one.
+test('M2: editor of a different event cannot read this event: 403', async () => {
+    database.tables.gftvqueue_event_editors[0].event_id = '11111111-1111-4111-8111-222222222222';
+    const response = await getEvent(IDS.event, SESSION_TOKENS.editor);
+    assert.equal(response.status, 403);
 });
 
 // L3 (F2): select('*') returns the whole event row, including created_by,

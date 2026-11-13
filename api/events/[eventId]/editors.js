@@ -20,12 +20,30 @@ export default async function handler(req, res) {
     } = req.query;
 
     if (req.method === 'GET') {
+        // Only people who manage this event (a superadmin or one of its
+        // editors) may list its editors.
+        if (!user.is_admin) {
+            const {
+                data: editorRow
+            } = await supabase
+                .from('gftvqueue_event_editors')
+                .select('id')
+                .eq('event_id', eventId)
+                .eq('user_id', user.id)
+                .maybeSingle();
+            if (!editorRow) return res.status(403).json({
+                error: 'Event editor access required'
+            });
+        }
+
+        // No page shows editors' emails, so they aren't sent (rule F2).
+        // The embed names user_id: the table has two keys to gftvhello_users.
         const {
             data,
             error
         } = await supabase
             .from('gftvqueue_event_editors')
-            .select('id, user_id, assigned_at, gftvhello_users(id, username, display_name, email)')
+            .select('id, user_id, assigned_at, gftvhello_users!user_id(id, username, display_name)')
             .eq('event_id', eventId);
 
         if (error) return res.status(500).json({

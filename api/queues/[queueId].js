@@ -29,6 +29,18 @@ async function canOperateQueue(userId, queueId, isAdmin) {
     };
 }
 
+async function isEventEditor(userId, eventId) {
+    const {
+        data
+    } = await supabase
+        .from('gftvqueue_event_editors')
+        .select('id')
+        .eq('event_id', eventId)
+        .eq('user_id', userId)
+        .maybeSingle();
+    return !!data;
+}
+
 export default async function handler(req, res) {
     if (handleCors(req, res)) return;
 
@@ -59,6 +71,20 @@ export default async function handler(req, res) {
             error: 'Queue not found'
         });
 
+        // Permission info. Only a superadmin, an admin or operator of this
+        // queue, or an editor of the queue's event may read it.
+        const {
+            allowed,
+            isQueueAdmin
+        } = await canOperateQueue(user.id, queueId, user.is_admin);
+
+        if (!allowed) {
+            const editor = await isEventEditor(user.id, queue.event_id);
+            if (!editor) return res.status(403).json({
+                error: 'No access to this queue'
+            });
+        }
+
         // Entry counts by status
         const {
             data: entries
@@ -76,12 +102,6 @@ export default async function handler(req, res) {
             missed: (entries || []).filter(e => e.status === 'missed'),
             completed: (entries || []).filter(e => e.status === 'completed'),
         };
-
-        // Permission info
-        const {
-            allowed,
-            isQueueAdmin
-        } = await canOperateQueue(user.id, queueId, user.is_admin);
 
         return res.status(200).json({
             queue,
