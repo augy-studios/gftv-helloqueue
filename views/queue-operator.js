@@ -323,7 +323,9 @@ function updateCounts(serving, waiting, missed, completedCount) {
 function updateColumns(container, serving, waiting, missed, completed, completedCount) {
     const updateColumn = (columnId, entries, status) => {
         const column = document.getElementById(`col-${status}`);
-        if (!column) return;
+        if (!column) {
+            return;
+        }
         column.innerHTML = buildColumnBody(entries, status);
         attachCardEvents(container, columnId, status);
     };
@@ -371,7 +373,9 @@ function attachOperatorEvents(container, user, navigate, queueId, eventId, queue
 // "← Event": stops the poll and goes back to the events list.
 function attachBackButton(container, user, navigate) {
     const backButton = document.getElementById('back-btn');
-    if (!backButton) return;
+    if (!backButton) {
+        return;
+    }
     backButton.addEventListener('click', () => {
         if (pollTimer) {
             clearInterval(pollTimer);
@@ -388,7 +392,9 @@ function attachBackButton(container, user, navigate) {
 // whole page.
 function attachQueueStatusButton(page) {
     const toggleButton = document.getElementById('toggle-queue-btn');
-    if (!toggleButton) return;
+    if (!toggleButton) {
+        return;
+    }
     toggleButton.addEventListener('click', async () => {
         let newStatus;
         if (page.queue.status === 'open') {
@@ -460,7 +466,9 @@ function attachMaxServingButtons(page) {
     const minusButton = document.getElementById('ms-minus');
     if (minusButton) {
         minusButton.addEventListener('click', async () => {
-            if (maxServing <= 1) return;
+            if (maxServing <= 1) {
+                return;
+            }
             maxServing--;
             await showAndSaveMaxServing(page.queueId, maxServing);
         });
@@ -605,7 +613,9 @@ function attachScannerOpenAndClose(scanner) {
 // jsQR, and validates the code it finds.
 function attachScanButton(scanner) {
     const scanButton = document.getElementById('scan-btn');
-    if (!scanButton) return;
+    if (!scanButton) {
+        return;
+    }
     // Needs the camera running. The button is disabled while it scans.
     scanButton.addEventListener('click', async () => {
         const video = document.getElementById('scanner-video');
@@ -641,16 +651,22 @@ function attachScanButton(scanner) {
 // Validate: checks a code typed or pasted in by hand.
 function attachManualValidateButton(scanner) {
     const validateButton = document.getElementById('manual-validate-btn');
-    if (!validateButton) return;
+    if (!validateButton) {
+        return;
+    }
     validateButton.addEventListener('click', async () => {
         const token = document.getElementById('manual-token').value.trim();
-        if (!token) return;
+        if (!token) {
+            return;
+        }
         await validateToken(token, scanner.queueId, scanner.scanType);
     });
 }
 
 function loadJsQR() {
-    if (window.jsQR) return Promise.resolve(window.jsQR);
+    if (window.jsQR) {
+        return Promise.resolve(window.jsQR);
+    }
     return new Promise((resolve, reject) => {
         const script = document.createElement('script');
         script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';

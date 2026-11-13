@@ -70,7 +70,9 @@ const LEGACY_MAP = {
 // Moves a theme saved under the old single key (hq_theme) onto the two keys
 // used now, once. Anything it doesn't recognise becomes classic + light.
 function migrateLegacy() {
-    if (localStorage.getItem(KEY_COLOR)) return;
+    if (localStorage.getItem(KEY_COLOR)) {
+        return;
+    }
     const oldTheme = localStorage.getItem(LEGACY_KEY);
     let mapped = { colorTheme: 'classic', mode: 'light' };
     if (LEGACY_MAP[oldTheme]) {
@@ -145,7 +147,9 @@ function getModeIcon() {
 
 function syncMeta() {
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (!meta) return;
+    if (!meta) {
+        return;
+    }
     meta.setAttribute('content', THEME_COLOR[`${getStoredColorTheme()}:${getStoredMode()}`]);
 }
 
@@ -219,7 +223,9 @@ function scheduleModeCheck() {
         modeTimer = null;
     }
 
-    if (getModePreference() !== 'time') return;
+    if (getModePreference() !== 'time') {
+        return;
+    }
 
     modeTimer = setTimeout(() => {
         modeTimer = null;
@@ -239,7 +245,9 @@ function scheduleModeCheck() {
 }
 
 export function refreshTimeMode() {
-    if (getModePreference() !== 'time') return;
+    if (getModePreference() !== 'time') {
+        return;
+    }
 
     const resolved = resolveMode('time');
     const current = document.documentElement.getAttribute('data-mode');
@@ -320,14 +328,18 @@ export function buildThemeModal() {
     // Delegation on each grid container.
     overlay.querySelector('#swatch-grid').addEventListener('click', (event) => {
         const option = event.target.closest('.theme-option');
-        if (!option) return;
+        if (!option) {
+            return;
+        }
         applyColorTheme(option.dataset.colorTheme);
         syncThemeModal();
     });
 
     overlay.querySelector('#mode-toggle').addEventListener('click', (event) => {
         const modeButton = event.target.closest('.mode-btn');
-        if (!modeButton) return;
+        if (!modeButton) {
+            return;
+        }
         applyMode(modeButton.dataset.mode);
         syncThemeModal();
     });
@@ -350,7 +362,9 @@ export function buildThemeModal() {
 // Reflects the live state back into the modal, which stays open.
 function syncThemeModal() {
     const overlay = document.getElementById('theme-modal');
-    if (!overlay) return;
+    if (!overlay) {
+        return;
+    }
     const theme = getStoredColorTheme();
     // The pressed button is the preference; the note says what the clock
     // resolved it to, so the two are never confused.

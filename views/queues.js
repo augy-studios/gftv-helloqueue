@@ -23,7 +23,9 @@ export async function renderQueuesView(container, {
 // counts and an Operate button.
 async function loadMyQueues(container, user, navigate) {
     const listElement = document.getElementById('queues-list');
-    if (!listElement) return;
+    if (!listElement) {
+        return;
+    }
 
     try {
         // The API returns only the queues this account can operate or
@@ -107,7 +109,9 @@ function buildQueueCard(queue) {
 // Fills one card's live counts from the public display API.
 async function loadQueueCounts(queueId, eventCode, queueCode) {
     const countsElement = document.getElementById(`counts-${queueId}`);
-    if (!countsElement) return;
+    if (!countsElement) {
+        return;
+    }
     try {
         const data = await fetch(`/api/display/${eventCode}/${queueCode}`).then((response) => response.json());
         const servingCount = lengthOrZero(data.serving);

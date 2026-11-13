@@ -5,7 +5,8 @@
     "private": true,
     "scripts": {
         "test": "node --require ./tests/support/setup.cjs --test \"tests/api/**/*.test.mjs\"",
-        "test:e2e": "playwright test"
+        "test:e2e": "playwright test",
+        "lint": "eslint ."
     },
     "dependencies": {
         "@supabase/supabase-js": "^2.39.3",

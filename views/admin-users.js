@@ -65,7 +65,9 @@ export async function renderAdminUsersView(container, {
 // approval; a search asks the API for usernames that match.
 async function loadUsers(currentUser, filter, search = '') {
     const tableWrapper = document.getElementById('users-table-wrap');
-    if (!tableWrapper) return;
+    if (!tableWrapper) {
+        return;
+    }
     tableWrapper.innerHTML = `<div class="loader"></div>`;
 
     try {
@@ -133,7 +135,9 @@ function attachUserActions(tableWrapper, currentUser, filter, search) {
 
     tableWrapper.querySelectorAll('.reject-btn').forEach((button) => {
         button.addEventListener('click', async () => {
-            if (!confirm('Reject and remove this account?')) return;
+            if (!confirm('Reject and remove this account?')) {
+                return;
+            }
             await updateUser(button.dataset.id, {
                 is_approved: false
             });

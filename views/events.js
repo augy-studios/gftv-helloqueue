@@ -72,7 +72,9 @@ function attachCreateEventForm(container, user, navigate) {
     }
 
     const createEventForm = document.getElementById('create-event-form');
-    if (!createEventForm) return;
+    if (!createEventForm) {
+        return;
+    }
     // A failed create shows the API's message in the form, under the fields.
     createEventForm.addEventListener('submit', async (submitEvent) => {
         submitEvent.preventDefault();
@@ -108,7 +110,9 @@ function attachCreateEventForm(container, user, navigate) {
 // Fills the events grid: one card per event, or a note when there are none.
 async function loadEvents(container, user, navigate) {
     const grid = document.getElementById('events-grid');
-    if (!grid) return;
+    if (!grid) {
+        return;
+    }
 
     try {
         const {
@@ -184,7 +188,9 @@ function attachEventCardButtons(grid, container, user, navigate) {
 
     grid.querySelectorAll('.ev-delete-btn').forEach((button) => {
         button.addEventListener('click', async () => {
-            if (!confirm('Delete this event and all its queues?')) return;
+            if (!confirm('Delete this event and all its queues?')) {
+                return;
+            }
             try {
                 await api(`/events/${button.dataset.id}`, {
                     method: 'DELETE'
@@ -393,7 +399,9 @@ function attachEventDetailEvents(eventId, container, user, navigate) {
 // the event page.
 function attachCreateQueueForm(eventId, container, user, navigate) {
     const createQueueForm = document.getElementById('create-queue-form');
-    if (!createQueueForm) return;
+    if (!createQueueForm) {
+        return;
+    }
     createQueueForm.addEventListener('submit', async (submitEvent) => {
         submitEvent.preventDefault();
         const formError = document.getElementById('q-err');
@@ -441,7 +449,9 @@ function attachEditorControls(eventId, container, user, navigate) {
     if (addEditorButton) {
         addEditorButton.addEventListener('click', async () => {
             const username = document.getElementById('add-editor-username').value.trim();
-            if (!username) return;
+            if (!username) {
+                return;
+            }
             try {
                 // Resolve username → user_id
                 const {
