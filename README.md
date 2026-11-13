@@ -159,9 +159,12 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_KEY=eyJ...          # service_role key (not anon)
 TELEGRAM_BOT_TOKEN=7123456789:AAE... # from @BotFather
 WEBAPP_URL=https://queue.gftv.asia   # bot only
+TELEGRAM_WEBHOOK_SECRET=...          # Vercel only: the same value as setWebhook's secret_token
 ```
 
-Set the first three in Vercel dashboard. All four go in the VPS bot's environment.
+Set the first three and `TELEGRAM_WEBHOOK_SECRET` in the Vercel dashboard. The first four (not the
+secret) go in the VPS bot's environment. While `TELEGRAM_WEBHOOK_SECRET` is unset, the webhook
+rejects every request.
 
 ---
 
@@ -176,7 +179,10 @@ npm run test:e2e    # Playwright: the pages served with vercel.json's rewrites, 
 ```
 
 - On a new machine, run `npx playwright install chromium` once first.
-- `npm run test:e2e` uses port 4391; set `HELLOQUEUE_TEST_PORT` to change it.
+- `npm run test:e2e` uses port 4391; set `HELLOQUEUE_TEST_PORT` to change it, for example when two
+  Playwright runs happen at once.
+- The bot's button handler is tested by loading `bot/index.js` with a fake TelegramBot
+  (`tests/support/fake-telegram-bot.cjs`).
 - A test named after a gap (H1, H2, M1 and so on) either records the gap or, once it's fixed,
   proves the fix. Tests labelled "open:" record known behaviour that no job has fixed yet.
 - `tests/` and `playwright.config.js` are listed in `.vercelignore`, so Vercel doesn't publish them.
@@ -190,9 +196,22 @@ Run `schema.sql` in the Supabase SQL editor.
 ```bash
 git init && git add . && git push origin main
 # Connect repo in Vercel dashboard
-# Add env vars: SUPABASE_URL, SUPABASE_SERVICE_KEY, TELEGRAM_BOT_TOKEN
+# Add env vars: SUPABASE_URL, SUPABASE_SERVICE_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET
 # Set custom domain: queue.gftv.asia
 ```
+
+To use the webhook, register it once with the Bot API (BotFather can't set the secret), passing
+the same secret as `TELEGRAM_WEBHOOK_SECRET`:
+
+```bash
+curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
+  -d url=https://queue.gftv.asia/api/telegram/webhook \
+  -d secret_token=<TELEGRAM_WEBHOOK_SECRET>
+```
+
+Telegram sends updates either to a webhook or to one polling bot, never both. While a webhook is
+set, the VPS bot in step 3 gets no updates (`polling_error` 409); to go back to the polling bot,
+call `deleteWebhook`. The webhook handles fewer commands than the polling bot and no buttons.
 
 ### 3. Telegram Bot (VPS)
 ```bash
@@ -200,7 +219,7 @@ git init && git add . && git push origin main
 tmux new-session -s helloqueue-bot
 
 cd ~/helloqueue-bot
-npm install
+npm install   # includes dotenv, so a .env next to index.js is read
 
 export TELEGRAM_BOT_TOKEN="..."
 export SUPABASE_URL="..."

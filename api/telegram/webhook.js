@@ -1,4 +1,9 @@
-// Telegram webhook - set via BotFather: /setwebhook https://queue.gftv.asia/api/telegram/webhook
+// Telegram webhook - registered with the Bot API's setWebhook method:
+//   url = https://queue.gftv.asia/api/telegram/webhook
+//   secret_token = the same value as TELEGRAM_WEBHOOK_SECRET in Vercel
+// Telegram then sends that value in the X-Telegram-Bot-Api-Secret-Token header.
+// Without TELEGRAM_WEBHOOK_SECRET set, every request is rejected.
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { supabase } from '../_supabase.js';
 import { handleCors } from '../_auth.js';
 import { sendTelegramMessage } from '../_telegram.js';
@@ -7,13 +12,24 @@ export default async function handler(req, res) {
     if (handleCors(req, res)) return;
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-    const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
-    if (secret && req.headers['x-telegram-bot-api-secret-token'] !== secret) {
+    // Fail closed: with no secret configured, anyone could post a fake update
+    // in any Telegram user's name, so nothing is accepted until it is set.
+    const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+    if (!expectedSecret) {
+        console.error('[Telegram webhook] TELEGRAM_WEBHOOK_SECRET is not set, so every request is rejected. Set it in Vercel and pass the same value as secret_token to setWebhook.');
+        return res.status(403).json({ error: 'Forbidden' });
+    }
+    if (!secretMatches(req.headers['x-telegram-bot-api-secret-token'], expectedSecret)) {
+        console.error('[Telegram webhook] Rejected a request with a missing or wrong X-Telegram-Bot-Api-Secret-Token header.');
         return res.status(403).json({ error: 'Forbidden' });
     }
 
     const update = req.body;
     const message = update?.message;
+    // Only messages are handled here. Button presses (callback queries) are
+    // ignored: the Leave and notification buttons are sent and handled by the
+    // polling bot (bot/index.js), which checks that the presser owns the entry.
+    // If this webhook ever handles them, it needs the same check.
     if (!message) return res.status(200).end();
 
     const chatId = message.chat?.id;
@@ -162,4 +178,16 @@ async function handleTelegramLink(chatId, from, otp) {
         .eq('id', otpRow.id);
 
     await sendTelegramMessage(chatId, '✅ *Telegram account linked successfully!*\n\nYou will now receive queue notifications here.');
+}
+
+// True when the header holds exactly the expected secret. Both values are
+// hashed to the same length first, so timingSafeEqual never throws on a
+// different length and the time taken reveals neither the secret nor its length.
+function secretMatches(receivedSecret, expectedSecret) {
+    if (typeof receivedSecret !== 'string') {
+        return false;
+    }
+    const receivedDigest = createHash('sha256').update(receivedSecret, 'utf8').digest();
+    const expectedDigest = createHash('sha256').update(expectedSecret, 'utf8').digest();
+    return timingSafeEqual(receivedDigest, expectedDigest);
 }

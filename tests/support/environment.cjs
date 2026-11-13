@@ -15,8 +15,8 @@ const STUB_ENVIRONMENT = {
 
 function applyStubEnvironment() {
     Object.assign(process.env, STUB_ENVIRONMENT);
-    // Unset, as the rules say this can't be checked here. The webhook skips
-    // its secret check when it's missing.
+    // Unset, as the rules say this can't be checked here. The webhook rejects
+    // every request while it's missing; telegram-webhook.test.mjs sets it.
     delete process.env.TELEGRAM_WEBHOOK_SECRET;
 }
 
