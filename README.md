@@ -36,6 +36,7 @@ helloqueue/
 │   ├── _telegram.js                    # sendTelegramMessage() HTTP helper
 │   │
 │   ├── auth/
+│   │   ├── attendee-login.js           # POST - new attendee sign-in code / GET - poll it: hands out the session token once, later polls get 410
 │   │   ├── login.js                    # POST - username + password login
 │   │   ├── logout.js                   # POST - delete session token
 │   │   ├── me.js                       # GET  - current user + telegram link status
@@ -51,10 +52,10 @@ helloqueue/
 │   │   ├── index.js                    # GET list / POST create (admin only)
 │   │   ├── [eventId].js                # GET / PUT / DELETE single event
 │   │   └── [eventId]/
-│   │       └── editors.js              # GET / POST / DELETE event editors (admin only)
+│   │       └── editors.js              # GET (superadmin or the event's editors) / POST / DELETE (admin only)
 │   │
 │   ├── queues/
-│   │   ├── index.js                    # GET list / POST create (event editor+)
+│   │   ├── index.js                    # GET list (?event_id=), GET ?mine=1 (my queues) / POST create (event editor+)
 │   │   ├── [queueId].js                # GET (with grouped entries) / PUT / DELETE
 │   │   └── [queueId]/
 │   │       ├── join.js                 # POST - attendee joins queue
@@ -114,6 +115,13 @@ All tables use the `gftvqueue_` prefix. The `gftvhello_users` and `gftvhello_ses
 
 No viewer role. You either have queue access or you don't.
 
+Who sees what:
+
+- **Queues and their entries:** a superadmin, the event's editors, and that queue's own staff.
+- **Events, event pages and editor lists:** a superadmin and the event's editors. Editors' emails
+  are never sent.
+- **Staff** see only their own queues, and access codes only for their own queues.
+
 ---
 
 ## URL Structure
@@ -169,8 +177,8 @@ npm run test:e2e    # Playwright: the pages served with vercel.json's rewrites, 
 
 - On a new machine, run `npx playwright install chromium` once first.
 - `npm run test:e2e` uses port 4391; set `HELLOQUEUE_TEST_PORT` to change it.
-- Tests named after a gap (H1, H2, M1 and so on) record known gaps on purpose. Fixing a gap means
-  changing its test.
+- A test named after a gap (H1, H2, M1 and so on) either records the gap or, once it's fixed,
+  proves the fix. Tests labelled "open:" record known behaviour that no job has fixed yet.
 - `tests/` and `playwright.config.js` are listed in `.vercelignore`, so Vercel doesn't publish them.
 
 ## Deployment

@@ -1,6 +1,7 @@
-// Baseline: GET api/queues/[queueId].js, as the code behaves today.
-// Tests marked with a gap ID (H1, L1) record a known security gap on
-// purpose; job 02 changes them when it fixes the gap.
+// GET api/queues/[queueId].js.
+// H1 (fixed in job 02): only a superadmin, an editor of the queue's event, or
+// an admin or operator of that queue gets the queue; everyone else gets 403.
+// L1 records a known gap on purpose (job 03 trims the fields).
 
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -107,7 +108,7 @@ test('entries never carry the attendee telegram_user_id', async () => {
     }
 });
 
-test('queries: the queue with its event code, the entries by number, then the permission check', async () => {
+test('queries: the queue with its event code, the permission check, then the entries by number', async () => {
     await getQueue(IDS.queueA, SESSION_TOKENS.operator);
     assert.deepEqual(callsOn(database, 'gftvqueue_queues'), [[
         ['select', '*, gftvqueue_events(access_code)', {}],
@@ -125,28 +126,76 @@ test('queries: the queue with its event code, the entries by number, then the pe
         ['eq', 'user_id', IDS.operator],
         ['maybeSingle'],
     ]]);
+    // H1: the access check runs before any entry is read.
+    assert.deepEqual(database.queries.map((query) => query.table).filter((table) => table.startsWith('gftvqueue_')), [
+        'gftvqueue_queues',
+        'gftvqueue_queue_permissions',
+        'gftvqueue_entries',
+    ]);
 });
 
-// H1: no access check on GET. Any signed-in account reads any queue and
-// every entry in it (names, @usernames, times), with can_operate: false.
-test('H1: operator of queue A can read queue B and all its attendees', async () => {
+// H1 (fixed): an operator of queue A can't read queue B: 403, and queue B's
+// entries are never even looked up.
+test('H1: operator of queue A cannot read queue B: 403', async () => {
     const response = await getQueue(IDS.queueB, SESSION_TOKENS.operator);
-    assert.equal(response.status, 200);
-    assert.equal(response.body.can_operate, false);
-    assert.equal(response.body.is_queue_admin, false);
-    assert.deepEqual(numbers(response.body.entries.waiting), [1]);
-    assert.equal(response.body.entries.waiting[0].display_name, 'Gus Goat');
-    assert.equal(response.body.entries.waiting[0].telegram_username, 'gus_goat');
+    assert.equal(response.status, 403);
+    assert.deepEqual(response.body, { error: 'No access to this queue' });
+    assert.equal(callsOn(database, 'gftvqueue_entries').length, 0);
 });
 
-// H1: no access check on GET, for an account with no roles at all.
-test('H1: an account with no roles can read queue A and all its attendees', async () => {
-    const response = await getQueue(IDS.queueA, SESSION_TOKENS.outsider);
-    assert.equal(response.status, 200);
-    assert.equal(response.body.can_operate, false);
-    const total = Object.values(response.body.entries).reduce((sum, group) => sum + group.length, 0);
-    assert.equal(total, 6);
-    assert.equal(response.body.entries.serving[0].telegram_username, 'cara_cat');
+// H1 (fixed): an account with no roles can't read any queue.
+test('H1: an account with no roles cannot read queue A or queue B: 403', async () => {
+    for (const queueId of [IDS.queueA, IDS.queueB]) {
+        const response = await getQueue(queueId, SESSION_TOKENS.outsider);
+        assert.equal(response.status, 403);
+        assert.deepEqual(response.body, { error: 'No access to this queue' });
+        assert.equal(JSON.stringify(response.body).includes('telegram_username'), false);
+    }
+    assert.equal(callsOn(database, 'gftvqueue_entries').length, 0);
+});
+
+// H1 (fixed): a queue admin of queue B can't read queue A.
+test('H1: queue admin of queue B cannot read queue A: 403', async () => {
+    const response = await getQueue(IDS.queueA, SESSION_TOKENS.queueAdmin);
+    assert.equal(response.status, 403);
+});
+
+// H1: an editor of the queue's event reads every queue in it, without
+// operate rights (they have no permission row).
+test('H1: event editor reads queue A and queue B, without operate rights', async () => {
+    for (const queueId of [IDS.queueA, IDS.queueB]) {
+        const response = await getQueue(queueId, SESSION_TOKENS.editor);
+        assert.equal(response.status, 200);
+        assert.equal(response.body.queue.id, queueId);
+        assert.equal(response.body.can_operate, false);
+        assert.equal(response.body.is_queue_admin, false);
+    }
+});
+
+// H1: an editor of another event gets 403 for this event's queues.
+test('H1: editor of a different event cannot read queue A: 403', async () => {
+    const otherEvent = '11111111-1111-4111-8111-222222222222';
+    database.tables.gftvqueue_event_editors[0].event_id = otherEvent;
+    const response = await getQueue(IDS.queueA, SESSION_TOKENS.editor);
+    assert.equal(response.status, 403);
+});
+
+// H1: the access check runs on the queue's own event, from the queue row.
+test('H1: the editor check looks up the editor row for the queue\'s event', async () => {
+    await getQueue(IDS.queueA, SESSION_TOKENS.editor);
+    assert.deepEqual(callsOn(database, 'gftvqueue_event_editors'), [[
+        ['select', 'id', {}],
+        ['eq', 'event_id', IDS.event],
+        ['eq', 'user_id', IDS.editor],
+        ['maybeSingle'],
+    ]]);
+});
+
+// The queue is looked up before the access check, so an unknown id is 404
+// for anyone signed in. Queue ids are random UUIDs, so this reveals nothing.
+test('unknown queue as an account with no roles: 404', async () => {
+    const response = await getQueue('99999999-9999-4999-8999-999999999999', SESSION_TOKENS.outsider);
+    assert.equal(response.status, 404);
 });
 
 // L1 (F2): the response carries fields the operator page doesn't show: the

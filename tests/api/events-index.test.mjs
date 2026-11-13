@@ -1,7 +1,9 @@
-// Baseline: api/events/index.js (GET list, POST create), as the code behaves
-// today. Tests marked with a gap ID (L2) record a known security gap on
-// purpose; job 02 changes them when it fixes the gap. B1 marks behaviour that
-// Augy's decision 1 ("own records") will change.
+// api/events/index.js (GET list, POST create).
+// M2 (job 02): events and their access codes are listed only to a superadmin
+// (every event) and an event's editors (their events). The code already did
+// this; the M2 tests prove it. L2 records a known gap on purpose (job 03 trims
+// the fields). B1 marks behaviour that Augy's decision 1 ("own records") will
+// change.
 
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -55,8 +57,44 @@ test('an account with no roles gets an empty list', async () => {
     assert.deepEqual(response.body, { events: [] });
 });
 
+// M2: a second event the editor isn't assigned to.
+const OTHER_EVENT = {
+    id: '11111111-1111-4111-8111-222222222222',
+    name: 'Other Con',
+    status: 'active',
+    access_code: 'OTHRCODE',
+    created_by: IDS.superadmin,
+    created_at: '2026-11-02T09:00:00.000Z',
+    updated_at: '2026-11-02T09:00:00.000Z',
+};
+
+test('M2: an event editor sees only their own events and access codes', async () => {
+    database.tables.gftvqueue_events.push({ description: null, venue: null, event_date: null, ...OTHER_EVENT });
+    const response = await listEvents(SESSION_TOKENS.editor);
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.body.events.map((event) => event.id), [IDS.event]);
+    assert.equal(JSON.stringify(response.body).includes('OTHRCODE'), false);
+});
+
+test('M2: a superadmin sees every event with its access code', async () => {
+    database.tables.gftvqueue_events.push({ description: null, venue: null, event_date: null, ...OTHER_EVENT });
+    const response = await listEvents(SESSION_TOKENS.superadmin);
+    assert.deepEqual(response.body.events.map((event) => event.access_code), ['OTHRCODE', 'EVNTCODE']);
+});
+
+test('M2: operators, queue admins and accounts with no roles get no events and no access codes', async () => {
+    for (const token of [SESSION_TOKENS.operator, SESSION_TOKENS.queueAdmin, SESSION_TOKENS.outsider]) {
+        const response = await listEvents(token);
+        assert.equal(response.status, 200);
+        assert.deepEqual(response.body, { events: [] });
+    }
+    // The events query is built but never run for them.
+    assert.equal(database.queriesOn('gftvqueue_events').every((query) => query.result === null), true);
+});
+
 // B1: only event editors see events. An operator or queue admin who isn't an
-// editor gets nothing, so the dashboard's "My Queues" view is empty for them.
+// editor gets nothing, so the dashboard's Events view is empty for them. (My
+// Queues no longer depends on this: job 02's M3 gave it GET /api/queues?mine=1.)
 // Decision 1 says staff see the events and queues they're assigned to.
 test('B1: operator of queue A (not an event editor) gets no events', async () => {
     const response = await listEvents(SESSION_TOKENS.operator);

@@ -1,4 +1,7 @@
 import {
+    randomInt
+} from 'crypto';
+import {
     supabase
 } from './_supabase.js';
 
@@ -153,12 +156,12 @@ export function handleCors(req, res) {
     return false;
 }
 
-/** Generate a random alphanumeric string of given length */
+/** Generate a random alphanumeric string of given length (crypto-secure) */
 export function randomCode(len = 8) {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // unambiguous
     let out = '';
     for (let i = 0; i < len; i++) {
-        out += chars[Math.floor(Math.random() * chars.length)];
+        out += chars[randomInt(chars.length)];
     }
     return out;
 }

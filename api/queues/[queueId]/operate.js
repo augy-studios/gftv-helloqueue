@@ -96,7 +96,8 @@ export default async function handler(req, res) {
                     .update({
                         status: 'missed'
                     })
-                    .eq('id', entry.id);
+                    .eq('id', entry.id)
+                    .eq('queue_id', queueId);
                 // Notify via Telegram
                 await notifyMissed(entry.telegram_user_id, entry.queue_number, queue.name);
             }
@@ -140,7 +141,8 @@ export default async function handler(req, res) {
                     status: 'serving',
                     called_at: new Date().toISOString()
                 })
-                .eq('id', entry.id);
+                .eq('id', entry.id)
+                .eq('queue_id', queueId);
 
             // Generate entry token for QR
             await supabase.from('gftvqueue_entry_tokens').insert({
@@ -192,6 +194,7 @@ export default async function handler(req, res) {
             .from('gftvqueue_entries')
             .select('id, queue_number, telegram_user_id, status')
             .eq('id', entry_id)
+            .eq('queue_id', queueId)
             .single();
 
         if (!entry) return res.status(404).json({
@@ -203,7 +206,7 @@ export default async function handler(req, res) {
 
         await supabase.from('gftvqueue_entries').update({
             status: 'missed'
-        }).eq('id', entry_id);
+        }).eq('id', entry_id).eq('queue_id', queueId);
         await notifyMissed(entry.telegram_user_id, entry.queue_number, queue.name);
 
         return res.status(200).json({
@@ -217,13 +220,28 @@ export default async function handler(req, res) {
             error: 'entry_id required'
         });
 
+        // The entry must be in this queue
+        const {
+            data: entry
+        } = await supabase
+            .from('gftvqueue_entries')
+            .select('id')
+            .eq('id', entry_id)
+            .eq('queue_id', queueId)
+            .single();
+
+        if (!entry) return res.status(404).json({
+            error: 'Entry not found'
+        });
+
         await supabase
             .from('gftvqueue_entries')
             .update({
                 status: 'completed',
                 completed_at: new Date().toISOString()
             })
-            .eq('id', entry_id);
+            .eq('id', entry_id)
+            .eq('queue_id', queueId);
 
         return res.status(200).json({
             message: 'Marked as complete'
@@ -238,13 +256,14 @@ export default async function handler(req, res) {
             .from('gftvqueue_entries')
             .select('id, queue_number, telegram_user_id, status, entered_at')
             .eq('id', entry_id)
+            .eq('queue_id', queueId)
             .single();
 
         if (!entry) return res.status(404).json({ error: 'Entry not found' });
         if (entry.status !== 'serving') return res.status(400).json({ error: 'Entry must be in serving state' });
         if (entry.entered_at) return res.status(409).json({ error: 'Entry already marked as entered' });
 
-        await supabase.from('gftvqueue_entries').update({ entered_at: new Date().toISOString() }).eq('id', entry_id);
+        await supabase.from('gftvqueue_entries').update({ entered_at: new Date().toISOString() }).eq('id', entry_id).eq('queue_id', queueId);
 
         const tgMsg = `🚪 *Entrance confirmed!*\n\nNumber: *#${entry.queue_number}*\n\nWelcome! Show your QR code again when you exit.`;
         await sendTelegramMessage(entry.telegram_user_id, tgMsg);
@@ -260,12 +279,13 @@ export default async function handler(req, res) {
             .from('gftvqueue_entries')
             .select('id, queue_number, telegram_user_id, status')
             .eq('id', entry_id)
+            .eq('queue_id', queueId)
             .single();
 
         if (!entry) return res.status(404).json({ error: 'Entry not found' });
         if (entry.status !== 'missed') return res.status(400).json({ error: 'Entry must be in missed state to rejoin' });
 
-        await supabase.from('gftvqueue_entries').update({ status: 'waiting' }).eq('id', entry_id);
+        await supabase.from('gftvqueue_entries').update({ status: 'waiting' }).eq('id', entry_id).eq('queue_id', queueId);
 
         return res.status(200).json({ message: 'Entry moved back to waiting' });
     }

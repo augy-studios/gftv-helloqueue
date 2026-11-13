@@ -31,16 +31,25 @@ export default async function handler(req, res) {
         });
     }
 
-    // Check uniqueness
+    // Check uniqueness: one plain .eq() lookup per value, so typed input is
+    // never parsed as part of a PostgREST filter expression.
     const {
-        data: existing
+        data: existingUsername
     } = await supabase
         .from('gftvhello_users')
         .select('id')
-        .or(`username.eq.${username},email.eq.${email}`)
+        .eq('username', username)
         .maybeSingle();
 
-    if (existing) {
+    const {
+        data: existingEmail
+    } = await supabase
+        .from('gftvhello_users')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+
+    if (existingUsername || existingEmail) {
         return res.status(409).json({
             error: 'Username or email already in use'
         });

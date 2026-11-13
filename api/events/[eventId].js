@@ -21,6 +21,23 @@ export default async function handler(req, res) {
 
     // ── GET ───────────────────────────────────────────────────────────────────
     if (req.method === 'GET') {
+        // The event page (details, access codes, editors, every queue) is
+        // only for a superadmin or an editor of this event. No page shows it
+        // to anyone else.
+        if (!user.is_admin) {
+            const {
+                data: editorRow
+            } = await supabase
+                .from('gftvqueue_event_editors')
+                .select('id')
+                .eq('event_id', eventId)
+                .eq('user_id', user.id)
+                .maybeSingle();
+            if (!editorRow) return res.status(403).json({
+                error: 'Event editor access required'
+            });
+        }
+
         const {
             data: event,
             error

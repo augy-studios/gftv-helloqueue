@@ -28,7 +28,7 @@ export default async function handler(req, res) {
 
         const { data: loginCode } = await supabase
             .from('gftvqueue_attendee_login_codes')
-            .select('used_at, expires_at, session_token')
+            .select('id, used_at, expires_at, session_token')
             .eq('code', code)
             .maybeSingle();
 
@@ -38,6 +38,24 @@ export default async function handler(req, res) {
         }
 
         if (!loginCode.used_at) return res.status(202).json({ pending: true });
+
+        // The token has already been handed out once: refuse every later poll.
+        if (!loginCode.session_token) {
+            return res.status(410).json({ error: 'Code already used' });
+        }
+
+        // Hand the token out once. Clear it, but only while it still holds the
+        // value read above, so two polls at the same moment can't both get it.
+        const { data: claimed } = await supabase
+            .from('gftvqueue_attendee_login_codes')
+            .update({ session_token: null })
+            .eq('id', loginCode.id)
+            .eq('session_token', loginCode.session_token)
+            .select('id');
+
+        if (!claimed || claimed.length === 0) {
+            return res.status(410).json({ error: 'Code already used' });
+        }
 
         return res.status(200).json({ token: loginCode.session_token });
     }

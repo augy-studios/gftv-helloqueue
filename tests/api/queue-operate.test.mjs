@@ -1,6 +1,9 @@
-// Baseline: POST api/queues/[queueId]/operate.js, as the code behaves today.
-// Tests marked with a gap ID (H2, M2) record a known security gap on
-// purpose; job 02 changes them when it fixes the gap.
+// POST api/queues/[queueId]/operate.js.
+// H2 (fixed in job 02): every entry lookup and update filters on both the
+// entry id and the queue id in the URL, so an entry from another queue is
+// 404 with nothing changed or sent. mark_complete (fixed in job 02) looks the
+// entry up in this queue first. Tests marked "open:" record behaviour no job
+// has fixed yet.
 
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -222,59 +225,110 @@ test('rejoin on a waiting attendee: 400', async () => {
     assert.deepEqual(response.body, { error: 'Entry must be in missed state to rejoin' });
 });
 
-// H2: entry actions don't check that entry_id belongs to the queue in the
-// URL. The permission check passes for queue A, then the action changes an
-// entry in queue B.
-test('H2: operator of queue A can mark a queue B attendee missed through queue A', async () => {
-    const response = await operate(IDS.queueA, SESSION_TOKENS.operator, { action: 'mark_missed', entry_id: IDS.entryB2Called });
-    assert.equal(response.status, 200);
-    assert.equal(entryRow(IDS.entryB2Called).status, 'missed');
-    // The Telegram notice even names queue A, the wrong queue.
-    const messages = telegramMessages();
-    assert.equal(messages[0].chatId, TELEGRAM_IDS.attendeeB2);
-    assert.match(messages[0].text, /Dealers Den \(Queue A\)/);
+// H2 (fixed): the permission check passes for queue A, but an entry from
+// queue B is not found there. Nothing changes and no Telegram message goes.
+const CROSS_QUEUE_CASES = [
+    { action: 'mark_missed', entry: IDS.entryB2Called },
+    { action: 'mark_entered', entry: IDS.entryB2Called },
+    { action: 'mark_complete', entry: IDS.entryB2Called },
+    { action: 'rejoin', entry: IDS.entryB2Called, before: { status: 'missed' } },
+];
+
+for (const { action, entry, before } of CROSS_QUEUE_CASES) {
+    test(`H2: operator of queue A cannot ${action} a queue B attendee through queue A: 404`, async () => {
+        if (before) {
+            setEntry(entry, before);
+        }
+        const unchanged = entryRow(entry);
+        const response = await operate(IDS.queueA, SESSION_TOKENS.operator, { action, entry_id: entry });
+        assert.equal(response.status, 404);
+        assert.deepEqual(response.body, { error: 'Entry not found' });
+        assert.deepEqual(entryRow(entry), unchanged);
+        assert.deepEqual(telegramMessages(), []);
+        // Nothing was written to the entries table.
+        const writes = database.queriesOn('gftvqueue_entries').filter((query) =>
+            query.calls.some((call) => call.method === 'update')
+        );
+        assert.equal(writes.length, 0);
+    });
+}
+
+// H2: the same holds for a superadmin, who passes every permission check:
+// the entry still has to be in the queue named in the URL.
+test('H2: superadmin cannot change a queue B attendee through queue A: 404', async () => {
+    const response = await operate(IDS.queueA, SESSION_TOKENS.superadmin, { action: 'mark_missed', entry_id: IDS.entryB2Called });
+    assert.equal(response.status, 404);
+    assert.equal(entryRow(IDS.entryB2Called).status, 'serving');
 });
 
-// H2: same gap, mark_entered.
-test('H2: operator of queue A can mark a queue B attendee entered through queue A', async () => {
-    const response = await operate(IDS.queueA, SESSION_TOKENS.operator, { action: 'mark_entered', entry_id: IDS.entryB2Called });
-    assert.equal(response.status, 200);
-    assert.notEqual(entryRow(IDS.entryB2Called).entered_at, null);
+// H2: an operator of queue A can't reach queue B through queue B's URL
+// either (canOperate), so they can't change queue B at all.
+test('H2: operator of queue A cannot change a queue B attendee through queue B: 403', async () => {
+    const response = await operate(IDS.queueB, SESSION_TOKENS.operator, { action: 'mark_missed', entry_id: IDS.entryB2Called });
+    assert.equal(response.status, 403);
+    assert.equal(entryRow(IDS.entryB2Called).status, 'serving');
+    assert.deepEqual(telegramMessages(), []);
 });
 
-// H2: same gap, mark_complete.
-test('H2: operator of queue A can complete a queue B attendee through queue A', async () => {
-    const response = await operate(IDS.queueA, SESSION_TOKENS.operator, { action: 'mark_complete', entry_id: IDS.entryB2Called });
-    assert.equal(response.status, 200);
-    assert.equal(entryRow(IDS.entryB2Called).status, 'completed');
+// H2: each entry action's lookup and update filter on both the entry id and
+// the queue id.
+const SAME_QUEUE_CASES = [
+    { action: 'mark_missed', entry: IDS.entryA3Called },
+    { action: 'mark_entered', entry: IDS.entryA3Called },
+    { action: 'mark_complete', entry: IDS.entryA4Entered },
+    { action: 'rejoin', entry: IDS.entryA2Missed },
+];
+
+for (const { action, entry } of SAME_QUEUE_CASES) {
+    test(`H2: ${action} looks up and updates the entry by its id and queue A's id`, async () => {
+        const response = await operate(IDS.queueA, SESSION_TOKENS.operator, { action, entry_id: entry });
+        assert.equal(response.status, 200);
+        const entryQueries = callsOn(database, 'gftvqueue_entries');
+        assert.equal(entryQueries.length, 2);
+        for (const calls of entryQueries) {
+            assert.deepEqual(calls.filter((call) => call[0] === 'eq'), [
+                ['eq', 'id', entry],
+                ['eq', 'queue_id', IDS.queueA],
+            ]);
+        }
+        assert.equal(entryQueries[0][0][0], 'select');
+        assert.equal(entryQueries[1][0][0], 'update');
+    });
+}
+
+// H2: call_next updates each called entry by its id and the queue id too.
+test('H2: call_next updates the called entry by its id and queue A\'s id', async () => {
+    await operate(IDS.queueA, SESSION_TOKENS.operator, { action: 'call_next' });
+    const updates = callsOn(database, 'gftvqueue_entries').filter((calls) => calls[0][0] === 'update');
+    assert.equal(updates.length, 1);
+    assert.deepEqual(updates[0].slice(1), [
+        ['eq', 'id', IDS.entryA5Waiting],
+        ['eq', 'queue_id', IDS.queueA],
+    ]);
 });
 
-// H2: same gap, rejoin.
-test('H2: operator of queue A can move a missed queue B attendee back to waiting through queue A', async () => {
-    setEntry(IDS.entryB2Called, { status: 'missed' });
-    const response = await operate(IDS.queueA, SESSION_TOKENS.operator, { action: 'rejoin', entry_id: IDS.entryB2Called });
-    assert.equal(response.status, 200);
-    assert.equal(entryRow(IDS.entryB2Called).status, 'waiting');
+// mark_complete (fixed): an id that doesn't exist is 404, and nothing is
+// written.
+test('mark_complete: an entry that does not exist is 404', async () => {
+    const response = await operate(IDS.queueA, SESSION_TOKENS.operator, { action: 'mark_complete', entry_id: UNKNOWN_ENTRY });
+    assert.equal(response.status, 404);
+    assert.deepEqual(response.body, { error: 'Entry not found' });
+    const writes = callsOn(database, 'gftvqueue_entries').filter((calls) => calls[0][0] === 'update');
+    assert.equal(writes.length, 0);
 });
 
-// M2: mark_complete never looks the entry up: it completes an entry from any
-// state, and answers 200 for an id that doesn't exist.
-test('M2: mark_complete completes a waiting attendee who was never called', async () => {
+// Open (job 01's M2, not in job 02): mark_complete still completes an entry
+// in any state, as long as it's in this queue. The page only offers it for
+// called attendees who have entered.
+test('open: mark_complete completes a waiting attendee who was never called', async () => {
     const response = await operate(IDS.queueA, SESSION_TOKENS.operator, { action: 'mark_complete', entry_id: IDS.entryA5Waiting });
     assert.equal(response.status, 200);
     assert.equal(entryRow(IDS.entryA5Waiting).status, 'completed');
 });
 
-// M2: same gap, a missed entry.
-test('M2: mark_complete completes a missed attendee', async () => {
+// Open: same, a missed entry.
+test('open: mark_complete completes a missed attendee', async () => {
     const response = await operate(IDS.queueA, SESSION_TOKENS.operator, { action: 'mark_complete', entry_id: IDS.entryA2Missed });
     assert.equal(response.status, 200);
     assert.equal(entryRow(IDS.entryA2Missed).status, 'completed');
-});
-
-// M2: same gap, an id that doesn't exist.
-test('M2: mark_complete answers 200 for an entry that does not exist', async () => {
-    const response = await operate(IDS.queueA, SESSION_TOKENS.operator, { action: 'mark_complete', entry_id: UNKNOWN_ENTRY });
-    assert.equal(response.status, 200);
-    assert.deepEqual(response.body, { message: 'Marked as complete' });
 });
