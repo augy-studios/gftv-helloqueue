@@ -4,3 +4,7 @@
 /test-results
 /playwright-report
 /.claude
+/.eslintrc.json
+# Database scripts: run by hand in Supabase, not part of the site.
+/schema.sql
+/sql

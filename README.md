@@ -189,7 +189,8 @@ npm run test:e2e    # Playwright: the pages served with vercel.json's rewrites, 
   proves the fix. Tests labelled "open:" record known behaviour that no job has fixed yet.
 - Page safety: `tests/e2e/xss.spec.js` proves data shows as text (H3), and
   `tests/e2e/analytics.spec.js` that staff and sign-in pages load no analytics (F1).
-- `tests/` and `playwright.config.js` are listed in `.vercelignore`, so Vercel doesn't publish them.
+- `tests/`, `playwright.config.js`, `.eslintrc.json`, `schema.sql` and `sql/` are listed in `.vercelignore`, so Vercel
+  doesn't publish them.
 
 ## Deployment
 

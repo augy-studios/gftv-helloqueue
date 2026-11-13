@@ -48,7 +48,9 @@ export async function renderProfileView(container, {
 // Fills the Telegram box: linked accounts get Unlink, others get a link code.
 async function loadTelegramStatus(user) {
     const telegramContent = document.getElementById('tg-content');
-    if (!telegramContent) return;
+    if (!telegramContent) {
+        return;
+    }
 
     try {
         const {
@@ -83,9 +85,13 @@ function showLinkedTelegram(telegramContent, account, user) {
       `;
 
     const unlinkButton = document.getElementById('unlink-tg-btn');
-    if (!unlinkButton) return;
+    if (!unlinkButton) {
+        return;
+    }
     unlinkButton.addEventListener('click', async () => {
-        if (!confirm('Unlink your Telegram account from HelloQueue?')) return;
+        if (!confirm('Unlink your Telegram account from HelloQueue?')) {
+            return;
+        }
         try {
             await api('/user/telegram-link', {
                 method: 'DELETE'

@@ -1,7 +1,7 @@
 // Bump on every change to anything this worker serves. The browser compares
 // this file byte for byte, so a version left alone is an update nobody is
 // ever prompted about. See update-bar-spec.md.
-const CACHE = "helloqueue-v43";
+const CACHE = "helloqueue-v44";
 
 const ASSETS = [
   "/",
