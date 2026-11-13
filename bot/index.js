@@ -444,10 +444,56 @@ bot.onText(/\/notify/, async (msg) => {
     }
 });
 
+// The entry ID on a Leave or notification button (leave_, notif_serving_,
+// notif_next_), or null for any other button.
+function entryIdFromButton(data) {
+    if (typeof data !== 'string') {
+        return null;
+    }
+    for (const prefix of ['leave_', 'notif_serving_', 'notif_next_']) {
+        if (data.startsWith(prefix)) {
+            return data.slice(prefix.length);
+        }
+    }
+    return null;
+}
+
+// True when the entry exists and was joined by the Telegram user who pressed
+// the button (callback_query.from.id against gftvqueue_entries.telegram_user_id).
+async function entryBelongsToPresser(entryId, presser) {
+    if (!presser || presser.id === undefined || presser.id === null) {
+        return false;
+    }
+    const {
+        data: entry
+    } = await supabase
+        .from('gftvqueue_entries')
+        .select('telegram_user_id')
+        .eq('id', entryId)
+        .maybeSingle();
+    if (!entry) {
+        return false;
+    }
+    return String(entry.telegram_user_id) === String(presser.id);
+}
+
 // Callback query handler
 bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
     const data = query.data;
+
+    // Leave and notification buttons act on one entry: only its owner may
+    // press them. Anyone else gets a short notice and nothing changes.
+    const buttonEntryId = entryIdFromButton(data);
+    if (buttonEntryId !== null) {
+        const isOwner = await entryBelongsToPresser(buttonEntryId, query.from);
+        if (!isOwner) {
+            await bot.answerCallbackQuery(query.id, {
+                text: "That isn't your entry"
+            });
+            return;
+        }
+    }
 
     await bot.answerCallbackQuery(query.id);
 
