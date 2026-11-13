@@ -31,7 +31,7 @@ helloqueue/
 ├── schema.sql                          # Supabase DB schema (run this first)
 │
 ├── api/                                # Vercel serverless functions
-│   ├── _auth.js                        # requireAuth(), handleCors(), randomCode()
+│   ├── _auth.js                        # requireAuth(), requireQueueAccess(), readBearerToken(), handleCors(), randomCode()
 │   ├── _supabase.js                    # Shared Supabase client (service key)
 │   ├── _telegram.js                    # sendTelegramMessage() HTTP helper
 │   │
@@ -60,7 +60,7 @@ helloqueue/
 │   │   └── [queueId]/
 │   │       ├── join.js                 # POST - attendee joins queue
 │   │       ├── leave.js                # POST - attendee leaves queue
-│   │       ├── operate.js              # POST - call_next, call_batch, mark_missed, mark_complete
+│   │       ├── operate.js              # POST - call_next, call_batch, mark_missed, mark_complete, mark_entered, rejoin
 │   │       ├── scan.js                 # POST - validate one-time QR entry token
 │   │       ├── status.js               # GET  - own queue status + QR data URL if serving
 │   │       ├── notify-prefs.js         # PUT  - toggle notify_serving / notify_next
