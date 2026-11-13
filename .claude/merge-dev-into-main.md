@@ -2,9 +2,9 @@
 
 Context for whoever merges this repo's `dev` branch into `main`. Augy, give this file to Claude: "Read `.claude/merge-dev-into-main.md` and help me merge `dev` into `main`."
 
-- **What's on `dev`:** the readable-refactor chain for help desk #21, one squash commit per job. 8 of 9 jobs have landed so far.
+- **What's on `dev`:** the readable-refactor chain for help desk #21, one squash commit per job. All 9 jobs have landed.
 - **What merging does:** Merging into `main` deploys the site and API on Vercel. The Telegram bot in `bot/` runs on the VPS and needs a pull and restart there.
-- **Kept up to date:** the coordinator (Thomas's workspace) updates this file each time a job lands, and once more just before opening the pull request. Last updated 13 Nov, 18:06 SGT.
+- **Kept up to date:** the coordinator (Thomas's workspace) updates this file each time a job lands, and once more just before opening the pull request. Last updated 13 Nov, 20:07 SGT.
 
 ## Claude: how to run the merge
 
@@ -31,7 +31,7 @@ Work through these in order, and stop to ask Augy wherever a step says so.
 | 06 | Readability: api/ | `e0f26ed` |
 | 07 | Readability: views/ and script.js | `28e1435` |
 | 08 | Readability: inline scripts, bot, service worker | `47d5d7f` |
-| 09 | Lint rules and schema | to come |
+| 09 | Lint rules, schema and the row-level-security script | `463a2cb` |
 
 Each job's commit message lists what changed and how it was reviewed. The full branch is kept at `refs/archive/<job-id>`: `git fetch origin 'refs/archive/*:refs/archive/*'` to see them.
 
@@ -53,6 +53,7 @@ They need no `.env`, network or real database.
 
 ## After merging
 
+- **Database:** run `sql/enable-row-level-security.sql` once in the Supabase SQL editor, after the deploy (job 09).
 - If `git diff origin/main origin/dev -- bot/` shows changes (jobs 04 and 08 touch it): pull `main` on the VPS, run `npm install` in the bot's folder (job 04 adds `dotenv`), and restart the Telegram bot.
 
 ## Smoke test on the live site
