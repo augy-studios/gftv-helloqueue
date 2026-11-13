@@ -348,6 +348,24 @@ function closeThemeModal() {
     if (modal) modal.classList.remove('open');
 }
 
+// HTML escaping (H3)
+const HTML_ESCAPES = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+};
+
+// Escapes a value for HTML text or a quoted attribute value. Every value that
+// comes from data (the API, localStorage) goes through this before it's put
+// into innerHTML. It converts with String() first, just as a template literal
+// does, so only the escaping changes. Where text can be set with
+// textContent instead, do that. sw-register.js keeps its own copy.
+export function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, (character) => HTML_ESCAPES[character]);
+}
+
 // Toast
 export function toast(message, type = 'info', duration = 3500) {
     let container = document.getElementById('toast-container');
@@ -439,7 +457,7 @@ export function buildTopbar(container) {
         <div class="topbar-actions">
 <button class="btn-icon" id="theme-btn" title="Change theme" aria-label="Change theme">${getStoredMode() === 'dark' ? Icons.moon : Icons.sun}</button>
           ${user ? `
-            <span class="text-sm text-muted">${user.display_name}</span>
+            <span class="text-sm text-muted">${escapeHtml(user.display_name)}</span>
             <button class="btn-icon" id="logout-btn" title="Log out">${Icons.logout}</button>
           ` : `
             <a href="/login" class="btn btn-primary btn-sm">Log in</a>

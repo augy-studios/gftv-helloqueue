@@ -113,7 +113,7 @@
     <div id="toast-container" class="toast-container"></div>
 
     <script type="module">
-        import { initTheme, buildTopbar, getToken, api, toast, Icons } from '/script.js';
+        import { initTheme, buildTopbar, getToken, api, toast, Icons, escapeHtml } from '/script.js';
         import { buildOfficialBar } from '/official-bar.js';
 
         initTheme();
@@ -232,7 +232,7 @@
                     // Don't wipe the UI on a transient server error, just notify
                     toast(err.message, 'error');
                 } else if (!silent) {
-                    content.innerHTML = `<div class="glass-card queue-card" style="text-align:center;padding:32px;">${err.message}</div>`;
+                    content.innerHTML = `<div class="glass-card queue-card" style="text-align:center;padding:32px;">${escapeHtml(err.message)}</div>`;
                 }
             }
         }
@@ -257,16 +257,23 @@
                 const qrHint = hasEntered
                     ? 'Keep this page open until you are ready to leave'
                     : 'Single-use · Valid until scanned';
+                // The QR image comes from the API as a data: URL. Only a PNG
+                // data URL is used, so a javascript: or any other URL can
+                // never reach the src attribute (H3).
+                let qrImageSource = '';
+                if (String(data.qr_data_url).startsWith('data:image/png;base64,')) {
+                    qrImageSource = data.qr_data_url;
+                }
                 qrBlock = `
                     <div style="text-align:center;margin:20px 0;">
                         <div class="text-sm${hasEntered ? '' : ' text-muted'}" style="margin-bottom:12px;${hasEntered ? 'color:var(--status-serving);font-weight:600;' : ''}">${qrLabel}</div>
                         <div class="qr-wrapper">
-                            <img src="${data.qr_data_url}" alt="Entry QR Code" />
+                            <img src="${escapeHtml(qrImageSource)}" alt="Entry QR Code" />
                         </div>
                         ${data.qr_token ? `
                         <div id="qr-token-copy" title="Tap to copy"
                             style="display:flex;align-items:center;gap:8px;margin-top:14px;padding:8px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;user-select:none;font-family:monospace;font-size:0.82rem;letter-spacing:0.04em;color:var(--text);max-width:100%;box-sizing:border-box;">
-                            <span id="qr-token-text" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1;">${data.qr_token}</span>
+                            <span id="qr-token-text" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1;">${escapeHtml(data.qr_token)}</span>
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                         </div>` : ''}
                         <div class="text-sm text-muted" style="margin-top:8px;">${qrHint}</div>
@@ -284,8 +291,8 @@
 
             content.innerHTML = `
                 <div class="attendee-header">
-                    <div style="font-size:1.4rem;">${queue.event_name || display?.event?.name || 'Event'}</div>
-                    <div class="text-muted" style="font-size:0.9rem;">${queue.name || display?.queue?.name || 'Queue'}</div>
+                    <div style="font-size:1.4rem;">${escapeHtml(queue.event_name || display?.event?.name || 'Event')}</div>
+                    <div class="text-muted" style="font-size:0.9rem;">${escapeHtml(queue.name || display?.queue?.name || 'Queue')}</div>
                 </div>
 
                 ${statusBanner}
@@ -294,12 +301,12 @@
                     <div class="glass-card queue-card">
                         <div class="your-number">
                             <div class="your-number-label">Your Queue Number</div>
-                            <div class="your-number-badge queue-number-lg ${entry.status}">${entry.queue_number}</div>
+                            <div class="your-number-badge queue-number-lg ${escapeHtml(entry.status)}">${entry.queue_number}</div>
                         </div>
                         ${qrBlock}
                         <div class="info-row">
                             <span class="info-row-label">Status</span>
-                            <span class="info-row-value">${entry.status}</span>
+                            <span class="info-row-value">${escapeHtml(entry.status)}</span>
                         </div>
                         ${isWaiting ? `
                             <div class="info-row">
@@ -350,7 +357,7 @@
                             </div>
                             ${queue.status !== 'open' ? `<div style="margin-top:10px;color:var(--status-missed);">This queue is currently closed.</div>` : ''}
                         </div>
-                        <div class="info-row"><span class="info-row-label">Queue status</span><span class="info-row-value">${queue.status}</span></div>
+                        <div class="info-row"><span class="info-row-label">Queue status</span><span class="info-row-value">${escapeHtml(queue.status)}</span></div>
                         <div class="info-row"><span class="info-row-label">People served</span><span class="info-row-value">${data.served_count || 0}</span></div>
                         <button class="btn btn-primary w-full" id="join-btn" style="margin-top:16px;" ${queue.status !== 'open' ? 'disabled' : ''}>
                             Join Queue
@@ -419,11 +426,11 @@
             const queueStatus = display?.queue?.status || 'unknown';
             content.innerHTML = `
                 <div class="attendee-header">
-                    <div style="font-size:1.4rem;">${display?.event?.name || 'Event'}</div>
-                    <div class="text-muted" style="font-size:0.9rem;">${display?.queue?.name || 'Queue'}</div>
+                    <div style="font-size:1.4rem;">${escapeHtml(display?.event?.name || 'Event')}</div>
+                    <div class="text-muted" style="font-size:0.9rem;">${escapeHtml(display?.queue?.name || 'Queue')}</div>
                 </div>
                 <div class="glass-card queue-card">
-                    <div class="info-row"><span class="info-row-label">Status</span><span class="info-row-value">${queueStatus}</span></div>
+                    <div class="info-row"><span class="info-row-label">Status</span><span class="info-row-value">${escapeHtml(queueStatus)}</span></div>
                     <div class="info-row"><span class="info-row-label">Now serving</span><span class="info-row-value highlight">${display?.serving?.[0] ?? '-'}</span></div>
                     <div class="info-row"><span class="info-row-label">Waiting</span><span class="info-row-value">${display?.total_in_queue || 0} people</span></div>
                     <div class="info-row"><span class="info-row-label">Est. wait</span><span class="info-row-value">~${display?.est_wait_minutes || 0} min</span></div>
@@ -473,7 +480,9 @@
                 if (!res.ok) throw new Error(data.error || 'Failed to generate code');
 
                 const { code, bot_username } = data;
-                const deepLink = `https://t.me/${bot_username}?start=attend_${code}`;
+                // A fixed https://t.me/ start, with each value encoded, so
+                // nothing from the API can change the link's scheme or host.
+                const deepLink = `https://t.me/${encodeURIComponent(bot_username)}?start=attend_${encodeURIComponent(code)}`;
 
                 const command = `/attend ${code}`;
                 document.getElementById('tg-command-display').textContent = command;

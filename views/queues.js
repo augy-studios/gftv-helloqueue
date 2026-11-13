@@ -1,7 +1,8 @@
 import {
     api,
     toast,
-    Icons
+    Icons,
+    escapeHtml
 } from '/script.js';
 
 export async function renderQueuesView(container, {
@@ -37,31 +38,31 @@ async function loadMyQueues(container, user, navigate) {
         listEl.innerHTML = allQueues.map(q => `
       <div class="glass-card event-card">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-          <span class="status-pill ${q.status}">${q.status}</span>
+          <span class="status-pill ${escapeHtml(q.status)}">${escapeHtml(q.status)}</span>
           ${q.is_queue_admin ? `<span class="text-sm text-muted">Queue Admin</span>` : `<span class="text-sm text-muted">Operator</span>`}
         </div>
 
-        <div class="event-card-title">${q.name}</div>
+        <div class="event-card-title">${escapeHtml(q.name)}</div>
         <div class="event-card-meta">
-          Event: ${q.event_name}
+          Event: ${escapeHtml(q.event_name)}
           &nbsp;·&nbsp; Max: ${q.max_serving}
         </div>
 
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
           <span class="text-sm text-muted">
-            Queue code: <strong>${q.access_code}</strong>
+            Queue code: <strong>${escapeHtml(q.access_code)}</strong>
           </span>
         </div>
 
-        <div id="counts-${q.id}" class="glass-sm" style="padding:8px 12px;margin-top:10px;display:flex;gap:14px;font-size:0.8rem;">
+        <div id="counts-${escapeHtml(q.id)}" class="glass-sm" style="padding:8px 12px;margin-top:10px;display:flex;gap:14px;font-size:0.8rem;">
           <span>${Icons.hourglass} Loading…</span>
         </div>
 
         <div class="event-card-footer" style="margin-top:12px;">
-          <a href="/display/${q.event_access_code}/${q.access_code}" target="_blank" class="btn btn-ghost btn-sm">
+          <a href="/display/${encodeURIComponent(q.event_access_code)}/${encodeURIComponent(q.access_code)}" target="_blank" class="btn btn-ghost btn-sm">
             ${Icons.monitor} Display
           </a>
-          <button class="btn btn-primary btn-sm operate-btn" data-queue="${q.id}" data-event="${q.event_id}">
+          <button class="btn btn-primary btn-sm operate-btn" data-queue="${escapeHtml(q.id)}" data-event="${escapeHtml(q.event_id)}">
             Operate
           </button>
         </div>
@@ -86,7 +87,7 @@ async function loadMyQueues(container, user, navigate) {
         });
 
     } catch (err) {
-        listEl.innerHTML = `<div class="empty-state">Failed to load queues: ${err.message}</div>`;
+        listEl.innerHTML = `<div class="empty-state">Failed to load queues: ${escapeHtml(err.message)}</div>`;
     }
 }
 

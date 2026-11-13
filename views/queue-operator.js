@@ -1,7 +1,8 @@
 import {
     api,
     toast,
-    Icons
+    Icons,
+    escapeHtml
 } from '/script.js';
 
 let pollTimer = null;
@@ -23,7 +24,7 @@ export async function renderQueueOperatorView(container, {
         await loadOperatorView(container, user, navigate, queueId, eventId);
         pollTimer = setInterval(() => loadOperatorView(container, user, navigate, queueId, eventId, true), 4000);
     } catch (err) {
-        container.innerHTML = `<div class="empty-state">Failed to load queue: ${err.message}</div>`;
+        container.innerHTML = `<div class="empty-state">Failed to load queue: ${escapeHtml(err.message)}</div>`;
     }
 }
 
@@ -62,8 +63,8 @@ function buildOperatorHTML(queue, serving, waiting, missed, completed, completed
       <div class="page-title" style="margin-bottom:12px;">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <button class="btn btn-ghost btn-sm" id="back-btn">&larr; Event</button>
-          <span>${queue.name}</span>
-          <span class="status-pill ${queue.status}">${queue.status}</span>
+          <span>${escapeHtml(queue.name)}</span>
+          <span class="status-pill ${escapeHtml(queue.status)}">${escapeHtml(queue.status)}</span>
           <span class="text-sm text-muted" id="last-updated" style="font-size:0.75rem;"></span>
         </div>
       </div>
@@ -86,7 +87,7 @@ function buildOperatorHTML(queue, serving, waiting, missed, completed, completed
           </div>
 
           <button class="btn btn-ghost btn-sm" id="open-scanner-btn">${Icons.scan} Scanner</button>
-          <a href="/display/${queue.event_access_code || ''}/${queue.access_code}" target="_blank" class="btn btn-ghost btn-sm">${Icons.monitor} Display</a>
+          <a href="/display/${encodeURIComponent(queue.event_access_code || '')}/${encodeURIComponent(queue.access_code)}" target="_blank" class="btn btn-ghost btn-sm">${Icons.monitor} Display</a>
         </div>
 
         <div class="max-serving-control">
@@ -98,7 +99,7 @@ function buildOperatorHTML(queue, serving, waiting, missed, completed, completed
       </div>
 
       <div class="glass-sm" style="padding:8px 14px;margin-bottom:14px;display:flex;align-items:center;gap:16px;font-size:0.82rem;color:var(--text-muted);">
-        ${Icons.bell} Queue Code: <strong>${queue.access_code}</strong>
+        ${Icons.bell} Queue Code: <strong>${escapeHtml(queue.access_code)}</strong>
         &nbsp;·&nbsp; Serving: <span id="stat-serving">${serving.length}</span>/${queue.max_serving}
         &nbsp;·&nbsp; Waiting: <span id="stat-waiting">${waiting.length}</span>
         &nbsp;·&nbsp; Missed: <span id="stat-missed">${missed.length}</span>
@@ -219,28 +220,28 @@ function buildEntryCard(entry, status) {
         const hasEntered = !!entry.entered_at;
         if (hasEntered) {
             actions = `
-      <button class="entry-action-btn success manual-exit-btn" data-id="${entry.id}" title="Manual exit (QR unavailable)">${Icons.x}</button>
+      <button class="entry-action-btn success manual-exit-btn" data-id="${escapeHtml(entry.id)}" title="Manual exit (QR unavailable)">${Icons.x}</button>
     `;
         } else {
             actions = `
-      <button class="entry-action-btn success mark-entered-btn" data-id="${entry.id}" title="Confirm entrance">${Icons.check}</button>
-      <button class="entry-action-btn danger mark-missed-btn" data-id="${entry.id}" title="Mark missed">${Icons.x}</button>
+      <button class="entry-action-btn success mark-entered-btn" data-id="${escapeHtml(entry.id)}" title="Confirm entrance">${Icons.check}</button>
+      <button class="entry-action-btn danger mark-missed-btn" data-id="${escapeHtml(entry.id)}" title="Mark missed">${Icons.x}</button>
     `;
         }
     } else if (status === 'missed') {
-        actions = `<button class="entry-action-btn rejoin-btn" data-id="${entry.id}" title="Move back to waiting">${Icons.refresh}</button>`;
+        actions = `<button class="entry-action-btn rejoin-btn" data-id="${escapeHtml(entry.id)}" title="Move back to waiting">${Icons.refresh}</button>`;
     }
     // Finished entries come without an id: their cards have no buttons.
     let entryIdAttribute = '';
     if (entry.id) {
-        entryIdAttribute = ` data-entry-id="${entry.id}"`;
+        entryIdAttribute = ` data-entry-id="${escapeHtml(entry.id)}"`;
     }
     return `
     <div class="entry-card"${entryIdAttribute}>
       <div class="queue-number ${status}">${entry.queue_number}</div>
-      <div class="entry-card-name" title="${entry.display_name}">
-        ${entry.display_name}
-        ${entry.telegram_username ? `<div style="font-size:0.75rem;color:var(--text-muted);">@${entry.telegram_username}</div>` : ''}
+      <div class="entry-card-name" title="${escapeHtml(entry.display_name)}">
+        ${escapeHtml(entry.display_name)}
+        ${entry.telegram_username ? `<div style="font-size:0.75rem;color:var(--text-muted);">@${escapeHtml(entry.telegram_username)}</div>` : ''}
       </div>
       <div class="entry-card-actions">${actions}</div>
     </div>
@@ -539,12 +540,12 @@ async function validateToken(token, queueId, scan_type = 'entrance') {
             body: { token, scan_type }
         });
         resultEl.className = 'scanner-result valid';
-        resultEl.innerHTML = `${Icons.check} ${data.message}<br><strong>#${data.queue_number} · ${data.name}</strong>`;
+        resultEl.innerHTML = `${Icons.check} ${escapeHtml(data.message)}<br><strong>#${data.queue_number} · ${escapeHtml(data.name)}</strong>`;
         resultEl.style.display = 'block';
         document.getElementById('manual-token').value = '';
     } catch (err) {
         resultEl.className = 'scanner-result invalid';
-        resultEl.innerHTML = `${Icons.x} ${err.message}`;
+        resultEl.innerHTML = `${Icons.x} ${escapeHtml(err.message)}`;
         resultEl.style.display = 'block';
     }
 }

@@ -1,7 +1,8 @@
 import {
     api,
     toast,
-    Icons
+    Icons,
+    escapeHtml
 } from '/script.js';
 
 export async function renderEventsView(container, {
@@ -86,22 +87,22 @@ async function loadEvents(container, user, navigate) {
         grid.innerHTML = events.map(ev => `
       <div class="glass-card event-card">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-          <span class="status-pill ${ev.status}">${ev.status}</span>
+          <span class="status-pill ${escapeHtml(ev.status)}">${escapeHtml(ev.status)}</span>
           ${user.is_admin ? `
             <div style="display:flex;gap:6px;">
-              <button class="btn-icon btn-sm ev-status-btn" data-id="${ev.id}" data-status="${ev.status}" title="Toggle status">${Icons.refresh}</button>
-              <button class="btn-icon btn-sm ev-delete-btn danger" data-id="${ev.id}" title="Delete event">${Icons.trash}</button>
+              <button class="btn-icon btn-sm ev-status-btn" data-id="${escapeHtml(ev.id)}" data-status="${escapeHtml(ev.status)}" title="Toggle status">${Icons.refresh}</button>
+              <button class="btn-icon btn-sm ev-delete-btn danger" data-id="${escapeHtml(ev.id)}" title="Delete event">${Icons.trash}</button>
             </div>
           ` : ''}
         </div>
-        <div class="event-card-title">${ev.name}</div>
+        <div class="event-card-title">${escapeHtml(ev.name)}</div>
         <div class="event-card-meta">
-          ${ev.venue ? `${Icons.calendar} ${ev.venue}` : ''}
+          ${ev.venue ? `${Icons.calendar} ${escapeHtml(ev.venue)}` : ''}
           ${ev.event_date ? ` · ${new Date(ev.event_date).toLocaleDateString()}` : ''}
         </div>
         <div class="event-card-footer">
-          <span class="text-sm text-muted">Code: <strong>${ev.access_code}</strong></span>
-          <button class="btn btn-ghost btn-sm ev-open-btn" data-id="${ev.id}">Manage ${Icons.externalLink}</button>
+          <span class="text-sm text-muted">Code: <strong>${escapeHtml(ev.access_code)}</strong></span>
+          <button class="btn btn-ghost btn-sm ev-open-btn" data-id="${escapeHtml(ev.id)}">Manage ${Icons.externalLink}</button>
         </div>
       </div>
     `).join('');
@@ -148,7 +149,7 @@ async function loadEvents(container, user, navigate) {
         });
 
     } catch (err) {
-        grid.innerHTML = `<div class="empty-state">Failed to load events: ${err.message}</div>`;
+        grid.innerHTML = `<div class="empty-state">Failed to load events: ${escapeHtml(err.message)}</div>`;
     }
 }
 
@@ -166,8 +167,8 @@ async function openEventDetail(eventId, container, user, navigate) {
       <div class="page-title">
         <div style="display:flex;align-items:center;gap:10px;">
           <button class="btn btn-ghost btn-sm" id="back-to-events">&larr; Events</button>
-          <span>${event.name}</span>
-          <span class="status-pill ${event.status}">${event.status}</span>
+          <span>${escapeHtml(event.name)}</span>
+          <span class="status-pill ${escapeHtml(event.status)}">${escapeHtml(event.status)}</span>
         </div>
         <button class="btn btn-primary btn-sm" id="create-queue-btn">${Icons.plus} New Queue</button>
       </div>
@@ -175,17 +176,17 @@ async function openEventDetail(eventId, container, user, navigate) {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
         <div class="glass-card" style="padding:16px;">
           <div class="section-label">Event Info</div>
-          ${event.venue ? `<div class="text-sm">${Icons.calendar} ${event.venue}</div>` : ''}
+          ${event.venue ? `<div class="text-sm">${Icons.calendar} ${escapeHtml(event.venue)}</div>` : ''}
           ${event.event_date ? `<div class="text-sm mt-1">${new Date(event.event_date).toLocaleDateString()}</div>` : ''}
-          <div class="text-sm mt-1 text-muted">Code: <strong>${event.access_code}</strong></div>
+          <div class="text-sm mt-1 text-muted">Code: <strong>${escapeHtml(event.access_code)}</strong></div>
         </div>
         <div class="glass-card" style="padding:16px;">
           <div class="section-label">Editors</div>
           <div id="editors-list">
             ${editors.map(e => `
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-                <span class="text-sm">${e.gftvhello_users?.display_name} (@${e.gftvhello_users?.username})</span>
-                ${user.is_admin ? `<button class="btn-icon btn-sm danger remove-editor-btn" data-event="${eventId}" data-user="${e.user_id}">${Icons.trash}</button>` : ''}
+                <span class="text-sm">${escapeHtml(e.gftvhello_users?.display_name)} (@${escapeHtml(e.gftvhello_users?.username)})</span>
+                ${user.is_admin ? `<button class="btn-icon btn-sm danger remove-editor-btn" data-event="${escapeHtml(eventId)}" data-user="${escapeHtml(e.user_id)}">${Icons.trash}</button>` : ''}
               </div>
             `).join('') || '<div class="text-sm text-muted">No editors assigned</div>'}
           </div>
@@ -203,14 +204,14 @@ async function openEventDetail(eventId, container, user, navigate) {
         ${queues.length ? queues.map(q => `
           <div class="glass-card event-card">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-              <span class="status-pill ${q.status}">${q.status}</span>
+              <span class="status-pill ${escapeHtml(q.status)}">${escapeHtml(q.status)}</span>
               <span class="text-sm text-muted">Max: ${q.max_serving}</span>
             </div>
-            <div class="event-card-title">${q.name}</div>
-            <div class="event-card-meta">Code: ${q.access_code}</div>
+            <div class="event-card-title">${escapeHtml(q.name)}</div>
+            <div class="event-card-meta">Code: ${escapeHtml(q.access_code)}</div>
             <div class="event-card-footer">
-              <a href="/display/${event.access_code}/${q.access_code}" target="_blank" class="btn btn-ghost btn-sm">${Icons.monitor} Display</a>
-              <button class="btn btn-primary btn-sm operate-queue-btn" data-queue="${q.id}" data-event="${eventId}">Operate</button>
+              <a href="/display/${encodeURIComponent(event.access_code)}/${encodeURIComponent(q.access_code)}" target="_blank" class="btn btn-ghost btn-sm">${Icons.monitor} Display</a>
+              <button class="btn btn-primary btn-sm operate-queue-btn" data-queue="${escapeHtml(q.id)}" data-event="${escapeHtml(eventId)}">Operate</button>
             </div>
           </div>
         `).join('') : '<div class="empty-state">No queues yet. Create one to get started.</div>'}
@@ -326,6 +327,6 @@ async function openEventDetail(eventId, container, user, navigate) {
         }
 
     } catch (err) {
-        container.innerHTML = `<div class="empty-state">Failed to load event: ${err.message}</div>`;
+        container.innerHTML = `<div class="empty-state">Failed to load event: ${escapeHtml(err.message)}</div>`;
     }
 }

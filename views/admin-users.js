@@ -1,7 +1,8 @@
 import {
     api,
     toast,
-    Icons
+    Icons,
+    escapeHtml
 } from '/script.js';
 
 export async function renderAdminUsersView(container, {
@@ -135,7 +136,7 @@ async function loadUsers(currentUser, filter, search = '') {
         });
 
     } catch (err) {
-        wrap.innerHTML = `<div class="empty-state">Failed to load users: ${err.message}</div>`;
+        wrap.innerHTML = `<div class="empty-state">Failed to load users: ${escapeHtml(err.message)}</div>`;
     }
 }
 
@@ -144,10 +145,10 @@ function buildUserRow(u, currentUser) {
     return `
     <tr style="border-bottom:1px solid var(--border);font-size:0.88rem;" ${!u.is_approved ? 'style="opacity:0.8;"' : ''}>
       <td style="padding:10px 14px;">
-        <div style="font-size:0.95rem;">${u.display_name}</div>
-        <div style="color:var(--text-muted);font-size:0.78rem;">@${u.username}</div>
+        <div style="font-size:0.95rem;">${escapeHtml(u.display_name)}</div>
+        <div style="color:var(--text-muted);font-size:0.78rem;">@${escapeHtml(u.username)}</div>
       </td>
-      <td style="padding:10px 14px;color:var(--text-muted);font-size:0.82rem;">${u.email || '-'}</td>
+      <td style="padding:10px 14px;color:var(--text-muted);font-size:0.82rem;">${escapeHtml(u.email || '-')}</td>
       <td style="padding:10px 14px;">
         <span class="status-pill ${u.is_approved ? 'open' : 'draft'}">${u.is_approved ? 'Approved' : 'Pending'}</span>
       </td>
@@ -161,15 +162,15 @@ function buildUserRow(u, currentUser) {
       <td style="padding:10px 14px;">
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
           ${!u.is_approved ? `
-            <button class="btn btn-success btn-sm approve-btn" data-id="${u.id}">${Icons.check} Approve</button>
+            <button class="btn btn-success btn-sm approve-btn" data-id="${escapeHtml(u.id)}">${Icons.check} Approve</button>
           ` : `
-            <button class="btn btn-danger btn-sm reject-btn" data-id="${u.id}">${Icons.x} Revoke</button>
+            <button class="btn btn-danger btn-sm reject-btn" data-id="${escapeHtml(u.id)}">${Icons.x} Revoke</button>
           `}
           ${!isSelf ? `
-            <button class="btn btn-ghost btn-sm toggle-editor-btn" data-id="${u.id}" data-current="${u.is_editor}">
+            <button class="btn btn-ghost btn-sm toggle-editor-btn" data-id="${escapeHtml(u.id)}" data-current="${u.is_editor}">
               ${u.is_editor ? 'Remove Editor' : 'Make Editor'}
             </button>
-            <button class="btn btn-ghost btn-sm toggle-admin-btn" data-id="${u.id}" data-current="${u.is_admin}">
+            <button class="btn btn-ghost btn-sm toggle-admin-btn" data-id="${escapeHtml(u.id)}" data-current="${u.is_admin}">
               ${u.is_admin ? 'Remove Admin' : 'Make Admin'}
             </button>
           ` : `<span class="text-sm text-muted">(you)</span>`}
