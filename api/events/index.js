@@ -16,10 +16,12 @@ export default async function handler(req, res) {
     if (!user) return;
 
     // ── GET: list events ──────────────────────────────────────────────────────
+    // Only what the events page shows (rule F2): the id its buttons send, the
+    // name, status, venue, date and access code.
     if (req.method === 'GET') {
         let query = supabase
             .from('gftvqueue_events')
-            .select('id, name, description, venue, event_date, status, access_code, created_by, created_at');
+            .select('id, name, venue, event_date, status, access_code');
 
         if (!user.is_admin) {
             // editors only see their assigned events
@@ -81,7 +83,6 @@ export default async function handler(req, res) {
         }
 
         const {
-            data,
             error
         } = await supabase
             .from('gftvqueue_events')
@@ -92,15 +93,14 @@ export default async function handler(req, res) {
                 event_date: event_date || null,
                 access_code,
                 created_by: user.id
-            })
-            .select()
-            .single();
+            });
 
         if (error) return res.status(500).json({
             error: error.message
         });
+        // The events page reloads its list and reads nothing back (rule F2).
         return res.status(201).json({
-            event: data
+            ok: true
         });
     }
 

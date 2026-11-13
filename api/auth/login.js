@@ -82,7 +82,6 @@ export default async function handler(req, res) {
                 await supabase.from('gftvhello_sessions').insert({ user_id: user.id, token, expires_at: expiresAt });
                 return res.status(200).json({
                     token,
-                    expires_at: expiresAt,
                     user: { id: user.id, username: user.username, display_name: user.display_name, is_admin: user.is_admin, is_editor: user.is_editor },
                 });
             }
@@ -115,9 +114,10 @@ export default async function handler(req, res) {
         expires_at: expiresAt,
     });
 
+    // The sign-in page keeps the token and saves `user` as hq_user, which
+    // the dashboard reads (rule F2: nothing else is sent).
     return res.status(200).json({
         token,
-        expires_at: expiresAt,
         user: {
             id: user.id,
             username: user.username,

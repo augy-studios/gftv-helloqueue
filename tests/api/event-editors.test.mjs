@@ -34,7 +34,7 @@ test('M1: superadmin lists the event\'s editors, without emails', async () => {
     assert.equal(response.body.editors.length, 1);
     const editor = response.body.editors[0];
     assert.equal(editor.user_id, IDS.editor);
-    assert.deepEqual(editor.gftvhello_users, { id: IDS.editor, username: 'editor.eve', display_name: 'Eve Editor' });
+    assert.deepEqual(editor.gftvhello_users, { username: 'editor.eve', display_name: 'Eve Editor' });
     assert.equal(JSON.stringify(response.body).includes('@example.test'), false);
 });
 
@@ -62,7 +62,7 @@ test('M1: an editor of a different event gets 403', async () => {
 test('M1: the editor list never selects email', async () => {
     await listEditors(SESSION_TOKENS.superadmin);
     const listQuery = database.queriesOn('gftvqueue_event_editors').at(-1);
-    assert.equal(listQuery.calls[0].args[0], 'id, user_id, assigned_at, gftvhello_users!user_id(id, username, display_name)');
+    assert.equal(listQuery.calls[0].args[0], 'user_id, gftvhello_users!user_id(username, display_name)');
     assert.equal(listQuery.result.error, null);
 });
 

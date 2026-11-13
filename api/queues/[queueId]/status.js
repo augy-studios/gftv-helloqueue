@@ -44,11 +44,12 @@ export default async function handler(req, res) {
         .eq('queue_id', queueId)
         .eq('status', 'completed');
 
+    // Not in the queue: the page shows the Join card, which takes the
+    // waiting count from the display endpoint (rule F2).
     if (!entry) {
         return res.status(200).json({
             in_queue: false,
             queue: { name: queue.name, status: queue.status, event_name: queue.gftvqueue_events?.name },
-            waiting_count: waitingCount || 0,
             served_count: servedCount || 0,
         });
     }
@@ -99,7 +100,6 @@ export default async function handler(req, res) {
     return res.status(200).json({
         in_queue: true,
         entry: {
-            id: entry.id,
             queue_number: entry.queue_number,
             status: entry.status,
             position,

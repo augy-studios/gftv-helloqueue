@@ -17,15 +17,17 @@ export default async function handler(req, res) {
     if (notify_serving !== undefined) updates.notify_serving = notify_serving;
     if (notify_next !== undefined) updates.notify_next = notify_next;
 
-    const { data, error } = await supabase
+    // .select('id').single() keeps the error when the caller has no live
+    // entry here. The page reads nothing back (rule F2).
+    const { error } = await supabase
         .from('gftvqueue_entries')
         .update(updates)
         .eq('queue_id', queueId)
         .eq('telegram_user_id', telegram_user_id)
         .in('status', ['waiting', 'serving'])
-        .select('notify_serving, notify_next')
+        .select('id')
         .single();
 
     if (error) return res.status(500).json({ error: error.message });
-    return res.status(200).json({ prefs: data });
+    return res.status(200).json({ ok: true });
 }

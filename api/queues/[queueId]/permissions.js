@@ -64,12 +64,15 @@ export default async function handler(req, res) {
             });
         }
 
+        // No page calls this list today. It sends what a staff list shows:
+        // each person's name and username, whether they're a queue admin, and
+        // the user_id a Revoke button sends (rule F2).
         const {
             data,
             error
         } = await supabase
             .from('gftvqueue_queue_permissions')
-            .select('id, user_id, is_queue_admin, granted_at, gftvhello_users!user_id(id, username, display_name)')
+            .select('user_id, is_queue_admin, gftvhello_users!user_id(username, display_name)')
             .eq('queue_id', queueId);
 
         if (error) return res.status(500).json({
@@ -95,7 +98,6 @@ export default async function handler(req, res) {
         });
 
         const {
-            data,
             error
         } = await supabase
             .from('gftvqueue_queue_permissions')
@@ -107,15 +109,14 @@ export default async function handler(req, res) {
                 granted_at: new Date().toISOString(),
             }, {
                 onConflict: 'queue_id,user_id'
-            })
-            .select()
-            .single();
+            });
 
         if (error) return res.status(500).json({
             error: error.message
         });
+        // No page reads anything back (rule F2).
         return res.status(201).json({
-            permission: data
+            ok: true
         });
     }
 

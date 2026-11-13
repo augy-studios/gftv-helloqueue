@@ -30,7 +30,7 @@ const NEW_PERSON = {
 test('creates an account waiting for approval', async () => {
     const response = await register(NEW_PERSON);
     assert.equal(response.status, 201);
-    assert.equal(response.body.user.username, 'new.person');
+    assert.deepEqual(response.body, { message: 'Registration successful. Your account is pending admin approval.' });
     const created = database.rows('gftvhello_users').find((row) => row.username === 'new.person');
     assert.equal(created.is_approved, false);
 });

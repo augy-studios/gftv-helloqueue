@@ -338,7 +338,13 @@ test.describe('dashboard actions', () => {
 
         await page.locator(`[data-entry-id="${IDS.entryA4Entered}"] .manual-exit-btn`).click();
         await expect(page.locator('.toast', { hasText: 'Manually exited' })).toBeVisible();
-        await expect(queueNumbers(page, 'completed')).toHaveText(['1', '4']);
+        // The Completed column is newest first by finish time (decision 4),
+        // and the fixture's #1 has a fixed finish time, so the order depends
+        // on the clock: check both are there (queue-completed.spec.js checks
+        // the order).
+        await expect(queueNumbers(page, 'completed')).toHaveCount(2);
+        await expect(page.locator('#col-completed')).toContainText('Dax Dragon');
+        await expect(page.locator('#completed-count')).toHaveText('2');
         expect(api.database.row('gftvqueue_entries', IDS.entryA4Entered).status).toBe('completed');
     });
 

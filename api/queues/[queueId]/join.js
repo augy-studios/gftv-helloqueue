@@ -15,7 +15,7 @@ export default async function handler(req, res) {
 
     const { data: queue } = await supabase
         .from('gftvqueue_queues')
-        .select('*, gftvqueue_events(name)')
+        .select('name, status, max_serving, gftvqueue_events(name)')
         .eq('id', queueId)
         .single();
 
@@ -24,14 +24,15 @@ export default async function handler(req, res) {
 
     const { data: existing } = await supabase
         .from('gftvqueue_entries')
-        .select('id, status, queue_number')
+        .select('id')
         .eq('queue_id', queueId)
         .eq('telegram_user_id', telegram_user_id)
         .in('status', ['waiting', 'serving'])
         .maybeSingle();
 
+    // The page shows only the error (rule F2).
     if (existing) {
-        return res.status(409).json({ error: 'You are already in this queue.', entry: existing });
+        return res.status(409).json({ error: 'You are already in this queue.' });
     }
 
     const { data: lastEntry } = await supabase
@@ -77,7 +78,7 @@ export default async function handler(req, res) {
         telegram_username = link?.telegram_username || null;
     }
 
-    const { data: entry, error } = await supabase
+    const { error } = await supabase
         .from('gftvqueue_entries')
         .insert({
             queue_id: queueId,
@@ -88,9 +89,7 @@ export default async function handler(req, res) {
             status: 'waiting',
             notify_serving,
             notify_next,
-        })
-        .select()
-        .single();
+        });
 
     if (error) return res.status(500).json({ error: error.message });
 
@@ -100,5 +99,6 @@ export default async function handler(req, res) {
 
     await sendTelegramMessage(telegram_user_id, tgMsg);
 
-    return res.status(201).json({ entry, position });
+    // The queue page reloads its status and reads nothing back (rule F2).
+    return res.status(201).json({ ok: true });
 }

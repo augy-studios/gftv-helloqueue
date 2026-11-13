@@ -36,14 +36,16 @@ export default async function handler(req, res) {
             });
         }
 
-        // No page shows editors' emails, so they aren't sent (rule F2).
+        // No page calls this list today. It sends what the event page's own
+        // editor list shows: each editor's name and username, and the user_id
+        // its Remove button sends. Never emails (rule F2).
         // The embed names user_id: the table has two keys to gftvhello_users.
         const {
             data,
             error
         } = await supabase
             .from('gftvqueue_event_editors')
-            .select('id, user_id, assigned_at, gftvhello_users!user_id(id, username, display_name)')
+            .select('user_id, gftvhello_users!user_id(username, display_name)')
             .eq('event_id', eventId);
 
         if (error) return res.status(500).json({
@@ -67,7 +69,6 @@ export default async function handler(req, res) {
         });
 
         const {
-            data,
             error
         } = await supabase
             .from('gftvqueue_event_editors')
@@ -75,9 +76,7 @@ export default async function handler(req, res) {
                 event_id: eventId,
                 user_id,
                 assigned_by: user.id
-            })
-            .select()
-            .single();
+            });
 
         if (error) {
             if (error.code === '23505') return res.status(409).json({
@@ -87,8 +86,9 @@ export default async function handler(req, res) {
                 error: error.message
             });
         }
+        // The event page reloads and reads nothing back (rule F2).
         return res.status(201).json({
-            editor: data
+            ok: true
         });
     }
 

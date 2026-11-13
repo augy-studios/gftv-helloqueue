@@ -180,8 +180,10 @@ test('POST as event editor creates a queue and makes them its queue admin', asyn
         method: 'POST', token: SESSION_TOKENS.editor, body: { event_id: IDS.event, name: 'Art Show' },
     });
     assert.equal(response.status, 201);
-    assert.match(response.body.queue.access_code, /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/);
-    const permission = database.rows('gftvqueue_queue_permissions').find((row) => row.queue_id === response.body.queue.id);
+    assert.deepEqual(response.body, { ok: true });
+    const created = database.rows('gftvqueue_queues').find((queue) => queue.name === 'Art Show');
+    assert.match(created.access_code, /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/);
+    const permission = database.rows('gftvqueue_queue_permissions').find((row) => row.queue_id === created.id);
     assert.equal(permission.user_id, IDS.editor);
     assert.equal(permission.is_queue_admin, true);
 });

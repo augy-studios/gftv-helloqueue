@@ -2,7 +2,8 @@
 // M2 (fixed in job 02, job 01's H3): the event, its access code, its editors
 // and its queues go only to a superadmin or an editor of the event; no page
 // shows them to anyone else, so everyone else gets 403.
-// L3 records a known gap on purpose (job 03 trims the fields). B2 marks a bug.
+// L3 (fixed in job 03, rule F2): GET sends only what the event page shows.
+// B2 marks a bug.
 
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -35,11 +36,10 @@ test('unknown event: 404', async () => {
 test('superadmin gets the event and both queues, oldest first', async () => {
     const response = await getEvent(IDS.event, SESSION_TOKENS.superadmin);
     assert.equal(response.status, 200);
-    assert.equal(response.body.event.id, IDS.event);
     assert.equal(response.body.event.name, 'GFTV Test Con 2026');
     assert.deepEqual(response.body.queues.map((queue) => queue.id), [IDS.queueA, IDS.queueB]);
     assert.deepEqual(Object.keys(response.body.queues[0]).sort(), [
-        'access_code', 'created_at', 'id', 'max_serving', 'name', 'status',
+        'access_code', 'id', 'max_serving', 'name', 'status',
     ]);
 });
 
@@ -51,7 +51,7 @@ test('B2: the editor list comes back empty because the editor embed is ambiguous
     const response = await getEvent(IDS.event, SESSION_TOKENS.superadmin);
     assert.deepEqual(response.body.editors, []);
     const editorQuery = database.queriesOn('gftvqueue_event_editors')[0];
-    assert.equal(editorQuery.calls[0].args[0], 'user_id, assigned_at, gftvhello_users(id, username, display_name)');
+    assert.equal(editorQuery.calls[0].args[0], 'user_id, gftvhello_users(username, display_name)');
     assert.equal(editorQuery.result.error.code, 'PGRST201');
 });
 
@@ -90,15 +90,15 @@ test('M2: editor of a different event cannot read this event: 403', async () => 
     assert.equal(response.status, 403);
 });
 
-// L3 (F2): select('*') returns the whole event row, including created_by,
-// created_at, updated_at and description, which the event page doesn't show.
-test('L3: GET returns the whole event row', async () => {
+// L3 (fixed, F2): select('*') used to return the whole event row, including
+// created_by, created_at, updated_at and description, which the event page
+// doesn't show. Now it names the columns the page shows.
+test('L3: GET returns only the event fields the event page shows', async () => {
     const response = await getEvent(IDS.event, SESSION_TOKENS.editor);
     assert.deepEqual(Object.keys(response.body.event).sort(), [
-        'access_code', 'created_at', 'created_by', 'description', 'event_date', 'id', 'name',
-        'status', 'updated_at', 'venue',
+        'access_code', 'event_date', 'name', 'status', 'venue',
     ]);
-    assert.equal(database.queriesOn('gftvqueue_events')[0].calls[0].args[0], '*');
+    assert.equal(database.queriesOn('gftvqueue_events')[0].calls[0].args[0], 'name, status, venue, event_date, access_code');
 });
 
 test('PUT as superadmin updates the given fields only', async () => {
@@ -106,9 +106,9 @@ test('PUT as superadmin updates the given fields only', async () => {
         method: 'PUT', query: { eventId: IDS.event }, token: SESSION_TOKENS.superadmin, body: { status: 'closed' },
     });
     assert.equal(response.status, 200);
-    assert.equal(response.body.event.status, 'closed');
-    assert.equal(response.body.event.name, 'GFTV Test Con 2026');
+    assert.deepEqual(response.body, { ok: true });
     assert.equal(database.row('gftvqueue_events', IDS.event).status, 'closed');
+    assert.equal(database.row('gftvqueue_events', IDS.event).name, 'GFTV Test Con 2026');
 });
 
 test('PUT as event editor: 403', async () => {

@@ -1,9 +1,9 @@
 // api/events/index.js (GET list, POST create).
 // M2 (job 02): events and their access codes are listed only to a superadmin
 // (every event) and an event's editors (their events). The code already did
-// this; the M2 tests prove it. L2 records a known gap on purpose (job 03 trims
-// the fields). B1 marks behaviour that Augy's decision 1 ("own records") will
-// change.
+// this; the M2 tests prove it. L2 (fixed in job 03, rule F2): the list sends
+// only what the events page shows. B1 marks behaviour that Augy's decision 1
+// ("own records") will change.
 
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -45,7 +45,7 @@ test('event editor lists the events they are assigned to', async () => {
     assert.equal(response.status, 200);
     assert.deepEqual(response.body.events.map((event) => event.id), [IDS.event]);
     assert.deepEqual(callsOn(database, 'gftvqueue_events')[0], [
-        ['select', 'id, name, description, venue, event_date, status, access_code, created_by, created_at', {}],
+        ['select', 'id, name, venue, event_date, status, access_code', {}],
         ['in', 'id', [IDS.event]],
         ['order', 'created_at', { ascending: false }],
     ]);
@@ -108,14 +108,13 @@ test('B1: queue admin of queue B (not an event editor) gets no events', async ()
     assert.deepEqual(response.body, { events: [] });
 });
 
-// L2 (F2): the list carries created_by (a user id) and created_at, which the
-// events page doesn't show.
-test('L2: each listed event carries created_by and created_at', async () => {
+// L2 (fixed, F2): the list used to carry created_by (a user id), created_at
+// and description, which the events page doesn't show.
+test('L2: each listed event carries only what the events page shows', async () => {
     const response = await listEvents(SESSION_TOKENS.editor);
     assert.deepEqual(Object.keys(response.body.events[0]).sort(), [
-        'access_code', 'created_at', 'created_by', 'description', 'event_date', 'id', 'name', 'status', 'venue',
+        'access_code', 'event_date', 'id', 'name', 'status', 'venue',
     ]);
-    assert.equal(response.body.events[0].created_by, IDS.superadmin);
 });
 
 test('POST as superadmin creates a draft event with an 8-character access code', async () => {
@@ -123,17 +122,19 @@ test('POST as superadmin creates a draft event with an 8-character access code',
         name: 'New Con', venue: 'Hall 2', event_date: '2027-01-02', description: 'Made in a test',
     });
     assert.equal(response.status, 201);
-    assert.equal(response.body.event.name, 'New Con');
-    assert.equal(response.body.event.status, 'draft');
-    assert.equal(response.body.event.created_by, IDS.superadmin);
-    assert.match(response.body.event.access_code, /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/);
+    assert.deepEqual(response.body, { ok: true });
+    const created = database.rows('gftvqueue_events').find((event) => event.name === 'New Con');
+    assert.equal(created.status, 'draft');
+    assert.equal(created.created_by, IDS.superadmin);
+    assert.match(created.access_code, /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/);
     assert.equal(database.rows('gftvqueue_events').length, 2);
 });
 
 test('POST with an empty date stores null', async () => {
     const response = await createEvent(SESSION_TOKENS.superadmin, { name: 'No Date Con', event_date: '' });
     assert.equal(response.status, 201);
-    assert.equal(response.body.event.event_date, null);
+    const created = database.rows('gftvqueue_events').find((event) => event.name === 'No Date Con');
+    assert.equal(created.event_date, null);
 });
 
 test('POST without a name: 400', async () => {

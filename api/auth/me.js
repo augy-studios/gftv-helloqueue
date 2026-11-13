@@ -24,12 +24,23 @@ export default async function handler(req, res) {
         .eq('user_id', user.id)
         .maybeSingle();
 
+    // Only what the profile page reads from here (rule F2): whether Telegram
+    // is linked, the linked @username and when. The page takes the rest of
+    // the account from hq_user, saved at sign-in.
+    let telegramUsername = null;
+    let telegramLinkedAt = null;
+    if (tgLink && tgLink.telegram_username) {
+        telegramUsername = tgLink.telegram_username;
+    }
+    if (tgLink && tgLink.linked_at) {
+        telegramLinkedAt = tgLink.linked_at;
+    }
+
     return res.status(200).json({
         user: {
-            ...user,
             telegram_linked: !!tgLink,
-            telegram_username: tgLink?.telegram_username || null,
-            telegram_linked_at: tgLink?.linked_at || null,
+            telegram_username: telegramUsername,
+            telegram_linked_at: telegramLinkedAt,
         },
     });
 }
