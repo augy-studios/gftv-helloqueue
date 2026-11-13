@@ -160,7 +160,7 @@
         </div>
 
         <script type="module">
-            import { initTheme, Icons } from '/script.js';
+            import { initTheme, Icons, escapeHtml } from '/script.js';
             import { buildOfficialBar } from '/official-bar.js';
     initTheme();
     buildOfficialBar();
@@ -197,7 +197,7 @@
             <div style="display:flex;align-items:center;justify-content:center;min-height:60vh;">
               <div class="text-muted" style="text-align:center;">
                 <div style="margin:8px 0;"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
-                <div style="margin-top:10px;">${err.message}</div>
+                <div style="margin-top:10px;">${escapeHtml(err.message)}</div>
                 <div class="text-sm" style="margin-top:6px;">Retrying…</div>
               </div>
             </div>`;
@@ -224,9 +224,9 @@
         root.innerHTML = `
           <div class="display-main" id="display-main">
             <div class="display-header">
-              <h1>${data.event?.name || 'Event'}</h1>
-              <p>${data.queue?.name || 'Queue'} &nbsp;·&nbsp;
-                <span class="status-pill ${data.queue?.status}">${data.queue?.status}</span>
+              <h1>${escapeHtml(data.event?.name || 'Event')}</h1>
+              <p>${escapeHtml(data.queue?.name || 'Queue')} &nbsp;·&nbsp;
+                <span class="status-pill ${escapeHtml(data.queue?.status)}">${escapeHtml(data.queue?.status)}</span>
               </p>
             </div>
  
@@ -256,8 +256,8 @@
           <!-- SIDEBAR -->
           <div class="display-sidebar">
             <div style="text-align:center;">
-              <div style="font-size:1.5rem;">${data.event?.name || ''}</div>
-              <div class="text-sm text-muted">${data.queue?.name || ''}</div>
+              <div style="font-size:1.5rem;">${escapeHtml(data.event?.name || '')}</div>
+              <div class="text-sm text-muted">${escapeHtml(data.queue?.name || '')}</div>
             </div>
  
             <div class="display-stats">
@@ -287,7 +287,7 @@
             <div>
               <div class="display-section-title">Join Queue</div>
               <div class="display-qr-wrap">
-                <img id="join-qr" src="${joinQR || `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(data.join_url)}`}" alt="Join QR" />
+                <img id="join-qr" src="${escapeHtml(joinQR || `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(data.join_url)}`)}" alt="Join QR" />
               </div>
               <div class="text-sm text-muted" style="margin-top:8px;">Scan to join</div>
             </div>

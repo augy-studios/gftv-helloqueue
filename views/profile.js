@@ -1,7 +1,8 @@
 import {
     api,
     toast,
-    Icons
+    Icons,
+    escapeHtml
 } from '/script.js';
 
 export async function renderProfileView(container, {
@@ -12,9 +13,9 @@ export async function renderProfileView(container, {
     <div style="max-width:520px;">
       <div class="glass-card" style="padding:22px;margin-bottom:16px;">
         <div class="section-label">Account</div>
-        <div class="info-row"><span class="info-row-label">Display Name</span><span>${user.display_name}</span></div>
-        <div class="info-row"><span class="info-row-label">Username</span><span>@${user.username}</span></div>
-        <div class="info-row"><span class="info-row-label">Email</span><span>${user.email || '-'}</span></div>
+        <div class="info-row"><span class="info-row-label">Display Name</span><span>${escapeHtml(user.display_name)}</span></div>
+        <div class="info-row"><span class="info-row-label">Username</span><span>@${escapeHtml(user.username)}</span></div>
+        <div class="info-row"><span class="info-row-label">Email</span><span>${escapeHtml(user.email || '-')}</span></div>
         <div class="info-row">
           <span class="info-row-label">Role</span>
           <span>${user.is_admin ? 'Admin' : user.is_editor ? 'Editor' : 'Approved User'}</span>
@@ -44,7 +45,7 @@ async function loadTelegramStatus(user) {
             tgContent.innerHTML = `
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
           <span class="status-pill open">Linked</span>
-          <span class="text-sm">@${me.telegram_username || 'unknown'}</span>
+          <span class="text-sm">@${escapeHtml(me.telegram_username || 'unknown')}</span>
         </div>
         <div class="text-sm text-muted mt-1">Linked on ${new Date(me.telegram_linked_at).toLocaleDateString()}</div>
         <div class="text-sm text-muted mt-1">Notifications are sent to your Telegram via @GFTVHelloQueueBot.</div>

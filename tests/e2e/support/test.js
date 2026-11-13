@@ -45,9 +45,10 @@ const EMPTY_PNG = Buffer.from(
 
 // Third-party hosts the pages load from, and what each gets instead.
 const STUBS = {
-    // Google Analytics (gtag.js), on every page.
+    // Google Analytics (gtag.js), on the public pages only (F1: not on
+    // dashboard, login or register).
     'www.googletagmanager.com': { contentType: 'text/javascript', body: '' },
-    // Google AdSense, on every page.
+    // Google AdSense, on the public pages only (F1).
     'pagead2.googlesyndication.com': { contentType: 'text/javascript', body: '' },
     // Join QR image on display.html.
     'api.qrserver.com': { contentType: 'image/png', body: EMPTY_PNG },

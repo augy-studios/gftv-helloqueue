@@ -187,6 +187,8 @@ npm run test:e2e    # Playwright: the pages served with vercel.json's rewrites, 
   (`tests/support/fake-telegram-bot.cjs`).
 - A test named after a gap (H1, H2, M1 and so on) either records the gap or, once it's fixed,
   proves the fix. Tests labelled "open:" record known behaviour that no job has fixed yet.
+- Page safety: `tests/e2e/xss.spec.js` proves data shows as text (H3), and
+  `tests/e2e/analytics.spec.js` that staff and sign-in pages load no analytics (F1).
 - `tests/` and `playwright.config.js` are listed in `.vercelignore`, so Vercel doesn't publish them.
 
 ## Deployment

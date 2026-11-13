@@ -47,13 +47,13 @@ test.describe('login.html (/login)', () => {
         await expect(page.locator('#totp-modal')).not.toHaveClass(/open/);
     });
 
-    // F1 takes Google Analytics and AdSense off the sign-in pages. This test
-    // records today's state; the F1 job turns it round.
-    test('loads Google Analytics and AdSense today (F1 removes them)', async ({ page, thirdParty }) => {
+    // F1 (job 05) took Google Analytics and AdSense off the sign-in pages
+    // (analytics.spec.js checks every page).
+    test('F1: loads neither Google Analytics nor AdSense', async ({ page, thirdParty }) => {
         await page.goto('/login');
         await expect(page.locator('#login-form')).toBeVisible();
-        expect(loadedFrom(thirdParty, 'www.googletagmanager.com')).toBe(true);
-        expect(loadedFrom(thirdParty, 'pagead2.googlesyndication.com')).toBe(true);
+        expect(loadedFrom(thirdParty, 'www.googletagmanager.com')).toBe(false);
+        expect(loadedFrom(thirdParty, 'pagead2.googlesyndication.com')).toBe(false);
     });
 
     test('signing in with the right password opens the dashboard', async ({ page, api }) => {
