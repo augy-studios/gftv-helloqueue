@@ -162,9 +162,10 @@ SUPABASE_SERVICE_KEY=eyJ...          # service_role key (not anon)
 TELEGRAM_BOT_TOKEN=7123456789:AAE... # from @BotFather
 WEBAPP_URL=https://queue.gftv.asia   # bot only
 TELEGRAM_WEBHOOK_SECRET=...          # Vercel only: the same value as setWebhook's secret_token
+TELEGRAM_BOT_USERNAME=...            # Vercel only: the bot's username, for the attendee page's link
 ```
 
-Set the first three and `TELEGRAM_WEBHOOK_SECRET` in the Vercel dashboard. The first four (not the
+Set the first three, `TELEGRAM_WEBHOOK_SECRET` and `TELEGRAM_BOT_USERNAME` in the Vercel dashboard. The first four (not the
 secret) go in the VPS bot's environment. While `TELEGRAM_WEBHOOK_SECRET` is unset, the webhook
 rejects every request.
 
@@ -195,13 +196,16 @@ npm run test:e2e    # Playwright: the pages served with vercel.json's rewrites, 
 ## Deployment
 
 ### 1. Database
-Run `schema.sql` in the Supabase SQL editor.
+Run `schema.sql` in the Supabase SQL editor (a new database only). Then run
+`sql/enable-row-level-security.sql` once: it turns on row-level security with no policies, so only
+the service key (Vercel and the bot) can read the tables. Both must use the `service_role` key, not
+anon. To undo, the script's header gives the `disable row level security` statements.
 
 ### 2. Vercel
 ```bash
 git init && git add . && git push origin main
 # Connect repo in Vercel dashboard
-# Add env vars: SUPABASE_URL, SUPABASE_SERVICE_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET
+# Add env vars: SUPABASE_URL, SUPABASE_SERVICE_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, TELEGRAM_BOT_USERNAME
 # Set custom domain: queue.gftv.asia
 ```
 
