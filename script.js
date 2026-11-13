@@ -67,18 +67,27 @@ const LEGACY_MAP = {
     hello: { colorTheme: 'hello', mode: 'light' },
 };
 
+// Moves a theme saved under the old single key (hq_theme) onto the two keys
+// used now, once. Anything it doesn't recognise becomes classic + light.
 function migrateLegacy() {
     if (localStorage.getItem(KEY_COLOR)) return;
-    const old = localStorage.getItem(LEGACY_KEY);
-    const mapped = LEGACY_MAP[old] || { colorTheme: 'classic', mode: 'light' };
+    const oldTheme = localStorage.getItem(LEGACY_KEY);
+    let mapped = { colorTheme: 'classic', mode: 'light' };
+    if (LEGACY_MAP[oldTheme]) {
+        mapped = LEGACY_MAP[oldTheme];
+    }
     localStorage.setItem(KEY_COLOR, mapped.colorTheme);
     localStorage.setItem(KEY_MODE, mapped.mode);
     localStorage.removeItem(LEGACY_KEY);
 }
 
 export function getStoredColorTheme() {
-    const v = localStorage.getItem(KEY_COLOR);
-    return COLOR_THEMES.some((t) => t.id === v) ? v : 'classic';
+    const storedTheme = localStorage.getItem(KEY_COLOR);
+    const isKnownTheme = COLOR_THEMES.some((colorTheme) => colorTheme.id === storedTheme);
+    if (isKnownTheme) {
+        return storedTheme;
+    }
+    return 'classic';
 }
 
 /* Mode preference and mode are different things. The preference is what the
@@ -94,8 +103,11 @@ export const LIGHT_FROM_HOUR = 9;
 export const LIGHT_UNTIL_HOUR = 18;
 
 export function getModePreference() {
-    const v = localStorage.getItem(KEY_MODE);
-    return MODE_PREFERENCES.includes(v) ? v : 'light';
+    const storedPreference = localStorage.getItem(KEY_MODE);
+    if (MODE_PREFERENCES.includes(storedPreference)) {
+        return storedPreference;
+    }
+    return 'light';
 }
 
 export function isDaylightHours(now = new Date()) {
@@ -104,14 +116,31 @@ export function isDaylightHours(now = new Date()) {
 }
 
 export function resolveMode(preference) {
-    if (preference === 'time') return isDaylightHours() ? 'light' : 'dark';
-    return preference === 'dark' ? 'dark' : 'light';
+    if (preference === 'time') {
+        if (isDaylightHours()) {
+            return 'light';
+        }
+        return 'dark';
+    }
+    if (preference === 'dark') {
+        return 'dark';
+    }
+    return 'light';
 }
 
 // The mode the document is in right now, resolved. What syncMeta, the theme
 // button icon, and withLightMode all want.
 export function getStoredMode() {
     return resolveMode(getModePreference());
+}
+
+// The icon for the mode the document is in: a moon in dark mode, a sun in
+// light mode.
+function getModeIcon() {
+    if (getStoredMode() === 'dark') {
+        return Icons.moon;
+    }
+    return Icons.sun;
 }
 
 function syncMeta() {
@@ -121,13 +150,18 @@ function syncMeta() {
 }
 
 // The topbar button shows the mode you are in, not the one you would switch to.
-function syncThemeBtnIcon() {
-    const btn = document.getElementById('theme-btn');
-    if (btn) btn.innerHTML = getStoredMode() === 'dark' ? Icons.moon : Icons.sun;
+function syncThemeButtonIcon() {
+    const themeButton = document.getElementById('theme-btn');
+    if (themeButton) {
+        themeButton.innerHTML = getModeIcon();
+    }
 }
 
-export function applyColorTheme(id) {
-    const theme = COLOR_THEMES.find((t) => t.id === id) || COLOR_THEMES[0];
+export function applyColorTheme(themeId) {
+    let theme = COLOR_THEMES.find((colorTheme) => colorTheme.id === themeId);
+    if (!theme) {
+        theme = COLOR_THEMES[0];
+    }
     document.documentElement.setAttribute('data-color-theme', theme.id);
     localStorage.setItem(KEY_COLOR, theme.id);
     syncMeta();
@@ -135,7 +169,10 @@ export function applyColorTheme(id) {
 }
 
 export function applyMode(preference) {
-    const chosen = MODE_PREFERENCES.includes(preference) ? preference : 'light';
+    let chosen = 'light';
+    if (MODE_PREFERENCES.includes(preference)) {
+        chosen = preference;
+    }
     const resolved = resolveMode(chosen);
 
     document.documentElement.setAttribute('data-mode', resolved);
@@ -145,7 +182,7 @@ export function applyMode(preference) {
     localStorage.setItem(KEY_MODE, chosen);
 
     syncMeta();
-    syncThemeBtnIcon();
+    syncThemeButtonIcon();
     scheduleModeCheck();
 
     return resolved;
@@ -157,7 +194,7 @@ let modeTimer = null;
 let watchingVisibility = false;
 
 // Milliseconds until the next 09:00 or 18:00, whichever comes first.
-function msUntilNextBoundary(now = new Date()) {
+function millisecondsUntilNextBoundary(now = new Date()) {
     const next = new Date(now);
     next.setMinutes(0, 0, 0);
 
@@ -187,14 +224,16 @@ function scheduleModeCheck() {
     modeTimer = setTimeout(() => {
         modeTimer = null;
         refreshTimeMode();
-    }, msUntilNextBoundary());
+    }, millisecondsUntilNextBoundary());
 
     // A laptop that sleeps through the boundary fires its timer late, and
     // coming back to the tab is the moment to notice.
     if (!watchingVisibility && typeof document !== 'undefined') {
         watchingVisibility = true;
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible') refreshTimeMode();
+            if (document.visibilityState === 'visible') {
+                refreshTimeMode();
+            }
         });
     }
 }
@@ -208,7 +247,7 @@ export function refreshTimeMode() {
     if (resolved !== current) {
         document.documentElement.setAttribute('data-mode', resolved);
         syncMeta();
-        syncThemeBtnIcon();
+        syncThemeButtonIcon();
         document.dispatchEvent(
             new CustomEvent('gftv:modechange', {
                 detail: { mode: resolved, preference: 'time' },
@@ -227,23 +266,26 @@ export function initTheme() {
     applyMode(getModePreference());
 }
 
-// Forces classic + light for the duration of fn, then restores both axes.
-// Writes the attributes directly and never touches localStorage, so an
+// Forces classic + light for the duration of callback, then restores both
+// axes. Writes the attributes directly and never touches localStorage, so an
 // export cannot overwrite the user's choice if it throws partway through.
-export function withLightMode(fn) {
+export function withLightMode(callback) {
     const root = document.documentElement;
     const mode = getStoredMode();
     const theme = getStoredColorTheme();
     root.setAttribute('data-color-theme', 'classic');
     root.setAttribute('data-mode', 'light');
     return Promise.resolve()
-        .then(fn)
+        .then(callback)
         .finally(() => {
             root.setAttribute('data-color-theme', theme);
             root.setAttribute('data-mode', mode);
         });
 }
 
+// Builds the theme picker (light, dark or time-based mode, and the colour
+// themes), adds it to the page closed, and wires up its buttons. Called once,
+// the first time the picker opens.
 export function buildThemeModal() {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
@@ -263,10 +305,10 @@ export function buildThemeModal() {
       <p class="mode-note" id="mode-note" hidden></p>
       <div class="modal-section-label">Colour theme</div>
       <div class="theme-grid" id="swatch-grid">
-        ${COLOR_THEMES.map((t) => `
-          <button class="theme-option" type="button" data-color-theme="${t.id}">
-            <div class="theme-swatch" style="background:${t.hex};"></div>
-            <div class="theme-name">${t.label}</div>
+        ${COLOR_THEMES.map((colorTheme) => `
+          <button class="theme-option" type="button" data-color-theme="${colorTheme.id}">
+            <div class="theme-swatch" style="background:${colorTheme.hex};"></div>
+            <div class="theme-name">${colorTheme.label}</div>
           </button>
         `).join('')}
       </div>
@@ -276,23 +318,23 @@ export function buildThemeModal() {
     document.body.appendChild(overlay);
 
     // Delegation on each grid container.
-    overlay.querySelector('#swatch-grid').addEventListener('click', (e) => {
-        const opt = e.target.closest('.theme-option');
-        if (!opt) return;
-        applyColorTheme(opt.dataset.colorTheme);
+    overlay.querySelector('#swatch-grid').addEventListener('click', (event) => {
+        const option = event.target.closest('.theme-option');
+        if (!option) return;
+        applyColorTheme(option.dataset.colorTheme);
         syncThemeModal();
     });
 
-    overlay.querySelector('#mode-toggle').addEventListener('click', (e) => {
-        const btn = e.target.closest('.mode-btn');
-        if (!btn) return;
-        applyMode(btn.dataset.mode);
+    overlay.querySelector('#mode-toggle').addEventListener('click', (event) => {
+        const modeButton = event.target.closest('.mode-btn');
+        if (!modeButton) return;
+        applyMode(modeButton.dataset.mode);
         syncThemeModal();
     });
 
     // Closing is a separate action: the close button or the backdrop.
-    overlay.addEventListener('click', (e) => {
-        if (e.target === overlay || e.target.closest('#theme-modal-close')) {
+    overlay.addEventListener('click', (event) => {
+        if (event.target === overlay || event.target.closest('#theme-modal-close')) {
             closeThemeModal();
         }
     });
@@ -314,13 +356,13 @@ function syncThemeModal() {
     // resolved it to, so the two are never confused.
     const preference = getModePreference();
     const resolved = getStoredMode();
-    overlay.querySelectorAll('.theme-option').forEach((o) => {
-        o.classList.toggle('active', o.dataset.colorTheme === theme);
-        o.setAttribute('aria-pressed', String(o.dataset.colorTheme === theme));
+    overlay.querySelectorAll('.theme-option').forEach((option) => {
+        option.classList.toggle('active', option.dataset.colorTheme === theme);
+        option.setAttribute('aria-pressed', String(option.dataset.colorTheme === theme));
     });
-    overlay.querySelectorAll('.mode-btn').forEach((b) => {
-        b.classList.toggle('active', b.dataset.mode === preference);
-        b.setAttribute('aria-pressed', String(b.dataset.mode === preference));
+    overlay.querySelectorAll('.mode-btn').forEach((modeButton) => {
+        modeButton.classList.toggle('active', modeButton.dataset.mode === preference);
+        modeButton.setAttribute('aria-pressed', String(modeButton.dataset.mode === preference));
     });
     const note = overlay.querySelector('#mode-note');
     if (note) {
@@ -338,14 +380,18 @@ function syncThemeModal() {
 
 export function openThemeModal() {
     let modal = document.getElementById('theme-modal');
-    if (!modal) modal = buildThemeModal();
+    if (!modal) {
+        modal = buildThemeModal();
+    }
     syncThemeModal();
     modal.classList.add('open');
 }
 
 function closeThemeModal() {
     const modal = document.getElementById('theme-modal');
-    if (modal) modal.classList.remove('open');
+    if (modal) {
+        modal.classList.remove('open');
+    }
 }
 
 // HTML escaping (H3)
@@ -376,15 +422,15 @@ export function toast(message, type = 'info', duration = 3500) {
         document.body.appendChild(container);
     }
 
-    const el = document.createElement('div');
-    el.className = `toast ${type}`;
-    el.textContent = message;
-    container.appendChild(el);
+    const toastElement = document.createElement('div');
+    toastElement.className = `toast ${type}`;
+    toastElement.textContent = message;
+    container.appendChild(toastElement);
 
     setTimeout(() => {
-        el.style.opacity = '0';
-        el.style.transition = 'opacity 0.3s';
-        setTimeout(() => el.remove(), 300);
+        toastElement.style.opacity = '0';
+        toastElement.style.transition = 'opacity 0.3s';
+        setTimeout(() => toastElement.remove(), 300);
     }, duration);
 }
 
@@ -392,8 +438,14 @@ export function toast(message, type = 'info', duration = 3500) {
 export function getToken() {
     return localStorage.getItem('hq_token');
 }
+
+// The signed-in user saved at sign-in, or null when there isn't one.
 export function getUser() {
-    return JSON.parse(localStorage.getItem('hq_user') || 'null');
+    let storedUser = localStorage.getItem('hq_user');
+    if (!storedUser) {
+        storedUser = 'null';
+    }
+    return JSON.parse(storedUser);
 }
 
 export function saveAuth(token, user) {
@@ -414,68 +466,112 @@ export function requireLogin() {
     return true;
 }
 
-// API helper
+// API helper. Calls /api<path> with the session token, sends options.body as
+// JSON, and returns the reply's JSON. Throws an Error with the API's message
+// when the call fails; a 401 with a session signs the person out.
 export async function api(path, options = {}) {
     const token = getToken();
+    let extraHeaders = {};
+    if (options.headers) {
+        extraHeaders = options.headers;
+    }
     const headers = {
         'Content-Type': 'application/json',
-        ...(options.headers || {})
+        ...extraHeaders
     };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
 
-    const res = await fetch(`/api${path}`, {
+    // No body unless the options carry one.
+    let requestBody = undefined;
+    if (options.body) {
+        requestBody = JSON.stringify(options.body);
+    }
+
+    const response = await fetch(`/api${path}`, {
         ...options,
         headers,
-        body: options.body ? JSON.stringify(options.body) : undefined,
+        body: requestBody,
     });
 
-    const data = await res.json().catch(() => ({}));
+    const data = await response.json().catch(() => ({}));
 
-    if (res.status === 401) {
+    if (response.status === 401) {
         if (token) {
             clearAuth();
             window.location.href = '/login';
             throw new Error('Session expired');
         }
-        throw new Error(data.error || 'Unauthorized');
+        let message = 'Unauthorized';
+        if (data.error) {
+            message = data.error;
+        }
+        throw new Error(message);
     }
 
-    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    if (!response.ok) {
+        let message;
+        if (data.error) {
+            message = data.error;
+        } else {
+            message = `HTTP ${response.status}`;
+        }
+        throw new Error(message);
+    }
     return data;
 }
 
-// Topbar builder
+// Topbar builder. Signed in, it shows the person's name and Log out;
+// signed out, a Log in link.
 export function buildTopbar(container) {
     const user = getUser();
+
+    let homeLink = '/';
+    let userActions = `
+            <a href="/login" class="btn btn-primary btn-sm">Log in</a>
+          `;
+    if (user) {
+        homeLink = '/dashboard';
+        userActions = `
+            <span class="text-sm text-muted">${escapeHtml(user.display_name)}</span>
+            <button class="btn-icon" id="logout-btn" title="Log out">${Icons.logout}</button>
+          `;
+    }
+    const themeIcon = getModeIcon();
+
     container.innerHTML = `
     <div class="topbar">
       <div class="app-wrapper" style="display:flex;align-items:center;justify-content:space-between;width:100%;max-width:unset;padding:0;">
-        <a href="${user ? '/dashboard' : '/'}" class="topbar-brand">
+        <a href="${homeLink}" class="topbar-brand">
           HelloQueue
           <span class="brand-badge">GFTV</span>
         </a>
         <div class="topbar-actions">
-<button class="btn-icon" id="theme-btn" title="Change theme" aria-label="Change theme">${getStoredMode() === 'dark' ? Icons.moon : Icons.sun}</button>
-          ${user ? `
-            <span class="text-sm text-muted">${escapeHtml(user.display_name)}</span>
-            <button class="btn-icon" id="logout-btn" title="Log out">${Icons.logout}</button>
-          ` : `
-            <a href="/login" class="btn btn-primary btn-sm">Log in</a>
-          `}
+<button class="btn-icon" id="theme-btn" title="Change theme" aria-label="Change theme">${themeIcon}</button>
+          ${userActions}
         </div>
       </div>
     </div>
   `;
 
-    document.getElementById('theme-btn')?.addEventListener('click', openThemeModal);
+    const themeButton = document.getElementById('theme-btn');
+    if (themeButton) {
+        themeButton.addEventListener('click', openThemeModal);
+    }
 
-    document.getElementById('logout-btn')?.addEventListener('click', async () => {
-        try {
-            await api('/auth/logout', {
-                method: 'POST'
-            });
-        } catch {}
-        clearAuth();
-        window.location.href = '/login';
-    });
+    const logoutButton = document.getElementById('logout-btn');
+    if (logoutButton) {
+        logoutButton.addEventListener('click', async () => {
+            try {
+                await api('/auth/logout', {
+                    method: 'POST'
+                });
+            } catch {
+                // Sign out on this device even if the server call fails.
+            }
+            clearAuth();
+            window.location.href = '/login';
+        });
+    }
 }
