@@ -50,30 +50,48 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// The update bar (sw-register.js) posts "skip-waiting" when a person presses
+// Reload. The message is either that string or an object with a `type`.
 self.addEventListener("message", (event) => {
-  const type = typeof event.data === "string" ? event.data : event.data?.type;
+  let messageType;
+  if (typeof event.data === "string") {
+    messageType = event.data;
+  } else if (event.data) {
+    messageType = event.data.type;
+  }
 
-  if (type === "skip-waiting") {
+  if (messageType === "skip-waiting") {
     event.waitUntil(self.skipWaiting().then(() => self.clients.claim()));
   }
 });
 
+// Stale while revalidate: answer from the cache when there's a copy, and
+// fetch a fresh copy into the cache either way, for the next visit. With no
+// cached copy, the answer is the network response.
 self.addEventListener("fetch", (event) => {
   // The cache only holds GET responses; cache.put rejects anything else.
-  if (event.request.method !== "GET") return;
+  if (event.request.method !== "GET") {
+    return;
+  }
 
   // API responses are never cached — they are live data and must always come
   // from the network.
-  if (new URL(event.request.url).pathname.startsWith("/api/")) return;
+  if (new URL(event.request.url).pathname.startsWith("/api/")) {
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const fetched = fetch(event.request).then((response) => {
-        const clone = response.clone();
-        caches.open(CACHE).then((cache) => cache.put(event.request, clone));
+        const responseCopy = response.clone();
+        caches.open(CACHE).then((cache) => cache.put(event.request, responseCopy));
         return response;
       }).catch(() => cached);
-      return cached || fetched;
+
+      if (cached) {
+        return cached;
+      }
+      return fetched;
     })
   );
 });

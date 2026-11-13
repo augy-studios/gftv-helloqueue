@@ -33,24 +33,39 @@
         // Pre-paint: land both theme axes before first paint, so every colour
         // block can select on both without an attribute-missing fallback.
         (function () {
-            var k = "gftv-helloqueue";
-            var m = localStorage.getItem(k + ".mode") || "light";
+            var appKey = "gftv-helloqueue";
+
+            // The stored preference: "light", "dark" or "time". Light when
+            // nothing is stored.
+            var mode = "light";
+            var storedMode = localStorage.getItem(appKey + ".mode");
+            if (storedMode) {
+                mode = storedMode;
+            }
 
             // Time based mode. Resolved here rather than in script.js because
             // that module runs after first paint, and an evening reader would
             // otherwise watch a light page turn dark. Keep the two hours in
             // step with LIGHT_FROM_HOUR and LIGHT_UNTIL_HOUR in script.js.
-            if (m === "time") {
-                var h = new Date().getHours();
-                m = h >= 9 && h < 18 ? "light" : "dark";
+            if (mode === "time") {
+                var currentHour = new Date().getHours();
+                if (currentHour >= 9 && currentHour < 18) {
+                    mode = "light";
+                } else {
+                    mode = "dark";
+                }
                 document.documentElement.setAttribute("data-mode-preference", "time");
-            } else if (m !== "dark") {
-                m = "light";
+            } else if (mode !== "dark") {
+                mode = "light";
             }
 
-            var c = localStorage.getItem(k + ".colorTheme") || "classic";
-            document.documentElement.setAttribute("data-mode", m);
-            document.documentElement.setAttribute("data-color-theme", c);
+            var colorTheme = "classic";
+            var storedColorTheme = localStorage.getItem(appKey + ".colorTheme");
+            if (storedColorTheme) {
+                colorTheme = storedColorTheme;
+            }
+            document.documentElement.setAttribute("data-mode", mode);
+            document.documentElement.setAttribute("data-color-theme", colorTheme);
         })();
     </script>
     <link rel="stylesheet" href="/style.css">
@@ -120,9 +135,10 @@
         buildOfficialBar();
         buildTopbar(document.getElementById('topbar-root'));
 
-        const parts = window.location.pathname.split('/').filter(Boolean);
-        const eventCode = parts[1];
-        const queueCode = parts[2];
+        // The page's address is /queue/<eventCode>/<queueCode>.
+        const pathParts = window.location.pathname.split('/').filter(Boolean);
+        const eventCode = pathParts[1];
+        const queueCode = pathParts[2];
 
         if (!eventCode || !queueCode) {
             document.getElementById('attendee-content').innerHTML = `
@@ -136,8 +152,14 @@
 
         // Token helpers - stored separately so the queue page works without a dashboard login.
 
+        // The attendee's session token, or the dashboard login's token when
+        // there's no attendee token.
         function getAttendeeToken() {
-            return localStorage.getItem('hq_attendee_token') || getToken();
+            const attendeeToken = localStorage.getItem('hq_attendee_token');
+            if (attendeeToken) {
+                return attendeeToken;
+            }
+            return getToken();
         }
 
         function setAttendeeToken(token) {
@@ -148,42 +170,71 @@
             localStorage.removeItem('hq_attendee_token');
         }
 
-        async function queueApi(path, opts = {}) {
+        // Calls the API with the attendee's token and returns its JSON answer.
+        // Throws an Error with the API's message when the call fails. A 401
+        // means the session has ended, so the stored token is cleared.
+        async function queueApi(path, options = {}) {
             const token = getAttendeeToken();
-            const res = await fetch('/api' + path, {
-                method: opts.method || 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                },
-                body: opts.body ? JSON.stringify(opts.body) : undefined,
-            });
+
+            let method = 'GET';
+            if (options.method) {
+                method = options.method;
+            }
+            const headers = {
+                'Content-Type': 'application/json',
+            };
+            if (token) {
+                headers.Authorization = `Bearer ${token}`;
+            }
+            let body;
+            if (options.body) {
+                body = JSON.stringify(options.body);
+            }
+
+            const response = await fetch('/api' + path, { method, headers, body });
             let data;
             try {
-                data = await res.json();
+                data = await response.json();
             } catch {
-                throw new Error(`Server error (${res.status})`);
+                throw new Error(`Server error (${response.status})`);
             }
-            if (!res.ok) {
+            if (!response.ok) {
                 // Session invalidated from another browser - clear and re-prompt
-                if (res.status === 401) clearAttendeeToken();
-                throw new Error(data.error || 'Request failed');
+                if (response.status === 401) {
+                    clearAttendeeToken();
+                }
+                let message = 'Request failed';
+                if (data.error) {
+                    message = data.error;
+                }
+                throw new Error(message);
             }
             return data;
         }
 
         // Init
         let pollTimer = null;
-        let queueId = null;
+        // The queue's id, from the public display endpoint. null until that
+        // answers with one.
+        let currentQueueId = null;
         let hasRendered = false;
 
+        // Loads the queue from the public display endpoint, shows the page,
+        // and refreshes it every 5 seconds. An unknown queue shows
+        // "Queue not found."
         async function initAttendee(eventCode, queueCode) {
             let displayData = null;
             try {
-                const res = await fetch(`/api/display/${eventCode}/${queueCode}`);
-                if (!res.ok) throw new Error();
-                displayData = await res.json();
-                queueId = displayData.queue?.id || null;
+                const response = await fetch(`/api/display/${eventCode}/${queueCode}`);
+                if (!response.ok) {
+                    throw new Error();
+                }
+                displayData = await response.json();
+                if (displayData.queue && displayData.queue.id) {
+                    currentQueueId = displayData.queue.id;
+                } else {
+                    currentQueueId = null;
+                }
             } catch {
                 document.getElementById('attendee-content').innerHTML = `
                     <div class="glass-card queue-card" style="text-align:center;padding:32px;">
@@ -197,15 +248,24 @@
             pollTimer = setInterval(() => refreshStatus(eventCode, queueCode, displayData, true), 5000);
         }
 
+        // Re-reads the public queue data, then shows the attendee's own status
+        // when they're signed in, or the Connect Telegram card when they
+        // aren't. An error replaces the page only before the first successful
+        // load, and not on the 5-second poll (`silent`); after the first load
+        // it shows as a toast.
         async function refreshStatus(eventCode, queueCode, displayData, silent = false) {
             const content = document.getElementById('attendee-content');
-            if (!content) return;
+            if (!content) {
+                return;
+            }
 
             try {
-                const res = await fetch(`/api/display/${eventCode}/${queueCode}`);
-                if (res.ok) {
-                    displayData = await res.json();
-                    if (displayData.queue?.id) queueId = displayData.queue.id;
+                const response = await fetch(`/api/display/${eventCode}/${queueCode}`);
+                if (response.ok) {
+                    displayData = await response.json();
+                    if (displayData.queue && displayData.queue.id) {
+                        currentQueueId = displayData.queue.id;
+                    }
                 }
             } catch { /* keep old displayData */ }
 
@@ -214,49 +274,71 @@
                 return;
             }
 
-            if (!queueId) {
+            if (!currentQueueId) {
                 renderConnectUI(displayData);
                 return;
             }
 
             try {
-                const data = await queueApi(`/queues/${queueId}/status`);
+                const data = await queueApi(`/queues/${currentQueueId}/status`);
                 hasRendered = true;
-                renderStatusUI(data, displayData, queueId);
-            } catch (err) {
-                if (err.message === 'Telegram account not linked') {
+                renderStatusUI(data, displayData, currentQueueId);
+            } catch (error) {
+                if (error.message === 'Telegram account not linked') {
                     renderConnectUI(displayData);
                     return;
                 }
                 if (hasRendered) {
                     // Don't wipe the UI on a transient server error, just notify
-                    toast(err.message, 'error');
+                    toast(error.message, 'error');
                 } else if (!silent) {
-                    content.innerHTML = `<div class="glass-card queue-card" style="text-align:center;padding:32px;">${escapeHtml(err.message)}</div>`;
+                    content.innerHTML = `<div class="glass-card queue-card" style="text-align:center;padding:32px;">${escapeHtml(error.message)}</div>`;
                 }
             }
         }
 
-        // Status view
-        function renderStatusUI(data, display, qId) {
+        // Status view, for a signed-in attendee. With an entry in the queue:
+        // their number, the "your turn" or "missed" banner, the entry QR code
+        // once called, the notification toggles and the Leave / Rejoin
+        // buttons. Without one: the Join card. `data` is the attendee's own
+        // status (/api/queues/<id>/status), `display` the public queue data.
+        function renderStatusUI(data, display, queueId) {
             const content = document.getElementById('attendee-content');
-            if (!content) return;
+            if (!content) {
+                return;
+            }
 
-            const queue = data.queue || {};
+            let queue = {};
+            if (data.queue) {
+                queue = data.queue;
+            }
             const entry = data.entry;
-            const isServing = entry?.status === 'serving';
-            const isWaiting = entry?.status === 'waiting';
-            const isMissed  = entry?.status === 'missed';
-            const hasEntered = isServing && !!entry?.entered_at;
+            let entryStatus;
+            if (entry) {
+                entryStatus = entry.status;
+            }
+            const isServing = entryStatus === 'serving';
+            const isWaiting = entryStatus === 'waiting';
+            const isMissed = entryStatus === 'missed';
+            let hasEntered = false;
+            if (isServing && entry.entered_at) {
+                hasEntered = true;
+            }
 
+            // The entry QR code, once the attendee is called: for the entrance
+            // first, then, once scanned in, for the exit.
             let qrBlock = '';
             if (isServing && data.qr_data_url) {
-                const qrLabel = hasEntered
-                    ? `${Icons.check} Entrance confirmed, show this QR code at the exit`
-                    : 'Show this QR code at the entrance';
-                const qrHint = hasEntered
-                    ? 'Keep this page open until you are ready to leave'
-                    : 'Single-use · Valid until scanned';
+                let qrLabel = 'Show this QR code at the entrance';
+                let qrHint = 'Single-use · Valid until scanned';
+                let qrLabelMutedClass = ' text-muted';
+                let qrLabelEnteredStyle = '';
+                if (hasEntered) {
+                    qrLabel = `${Icons.check} Entrance confirmed, show this QR code at the exit`;
+                    qrHint = 'Keep this page open until you are ready to leave';
+                    qrLabelMutedClass = '';
+                    qrLabelEnteredStyle = 'color:var(--status-serving);font-weight:600;';
+                }
                 // The QR image comes from the API as a data: URL. Only a PNG
                 // data URL is used, so a javascript: or any other URL can
                 // never reach the src attribute (H3).
@@ -264,40 +346,92 @@
                 if (String(data.qr_data_url).startsWith('data:image/png;base64,')) {
                     qrImageSource = data.qr_data_url;
                 }
-                qrBlock = `
-                    <div style="text-align:center;margin:20px 0;">
-                        <div class="text-sm${hasEntered ? '' : ' text-muted'}" style="margin-bottom:12px;${hasEntered ? 'color:var(--status-serving);font-weight:600;' : ''}">${qrLabel}</div>
-                        <div class="qr-wrapper">
-                            <img src="${escapeHtml(qrImageSource)}" alt="Entry QR Code" />
-                        </div>
-                        ${data.qr_token ? `
+                // The token in the QR code, as text the attendee can tap to copy.
+                let qrTokenBlock = '';
+                if (data.qr_token) {
+                    qrTokenBlock = `
                         <div id="qr-token-copy" title="Tap to copy"
                             style="display:flex;align-items:center;gap:8px;margin-top:14px;padding:8px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;user-select:none;font-family:monospace;font-size:0.82rem;letter-spacing:0.04em;color:var(--text);max-width:100%;box-sizing:border-box;">
                             <span id="qr-token-text" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1;">${escapeHtml(data.qr_token)}</span>
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                        </div>` : ''}
+                        </div>`;
+                }
+                qrBlock = `
+                    <div style="text-align:center;margin:20px 0;">
+                        <div class="text-sm${qrLabelMutedClass}" style="margin-bottom:12px;${qrLabelEnteredStyle}">${qrLabel}</div>
+                        <div class="qr-wrapper">
+                            <img src="${escapeHtml(qrImageSource)}" alt="Entry QR Code" />
+                        </div>
+                        ${qrTokenBlock}
                         <div class="text-sm text-muted" style="margin-top:8px;">${qrHint}</div>
                     </div>`;
             }
 
             let statusBanner = '';
             if (isServing) {
-                statusBanner = hasEntered
-                    ? `<div style="background:var(--status-serving);color:var(--status-on);padding:12px;border-radius:var(--radius-sm);text-align:center;margin-bottom:14px;font-size:1.05rem;">${Icons.check} You have entered! Show your QR code at the exit when you leave.</div>`
-                    : `<div style="background:var(--status-serving);color:var(--status-on);padding:12px;border-radius:var(--radius-sm);text-align:center;margin-bottom:14px;font-size:1.05rem;">${Icons.star} It's your turn! Proceed to the entrance.</div>`;
+                if (hasEntered) {
+                    statusBanner = `<div style="background:var(--status-serving);color:var(--status-on);padding:12px;border-radius:var(--radius-sm);text-align:center;margin-bottom:14px;font-size:1.05rem;">${Icons.check} You have entered! Show your QR code at the exit when you leave.</div>`;
+                } else {
+                    statusBanner = `<div style="background:var(--status-serving);color:var(--status-on);padding:12px;border-radius:var(--radius-sm);text-align:center;margin-bottom:14px;font-size:1.05rem;">${Icons.star} It's your turn! Proceed to the entrance.</div>`;
+                }
             } else if (isMissed) {
                 statusBanner = `<div style="background:var(--status-missed);color:var(--status-on);padding:12px;border-radius:var(--radius-sm);text-align:center;margin-bottom:14px;">${Icons.frown} You missed your turn. You can rejoin below.</div>`;
             }
 
-            content.innerHTML = `
-                <div class="attendee-header">
-                    <div style="font-size:1.4rem;">${escapeHtml(queue.event_name || display?.event?.name || 'Event')}</div>
-                    <div class="text-muted" style="font-size:0.9rem;">${escapeHtml(queue.name || display?.queue?.name || 'Queue')}</div>
-                </div>
+            // The event and queue names, from the attendee's status, else from
+            // the public queue data.
+            let eventName = 'Event';
+            if (queue.event_name) {
+                eventName = queue.event_name;
+            } else if (display && display.event && display.event.name) {
+                eventName = display.event.name;
+            }
+            let queueName = 'Queue';
+            if (queue.name) {
+                queueName = queue.name;
+            } else if (display && display.queue && display.queue.name) {
+                queueName = display.queue.name;
+            }
 
-                ${statusBanner}
+            let servedCount = 0;
+            if (data.served_count) {
+                servedCount = data.served_count;
+            }
 
-                ${entry ? `
+            // The cards under the banner: the attendee's entry when they have
+            // one, otherwise the Join card.
+            let entryCards = '';
+            if (entry) {
+                let positionRow = '';
+                if (isWaiting) {
+                    positionRow = `
+                            <div class="info-row">
+                                <span class="info-row-label">Position</span>
+                                <span class="info-row-value highlight">#${entry.position} in queue</span>
+                            </div>`;
+                }
+                let waitingCount = 0;
+                if (data.waiting_count) {
+                    waitingCount = data.waiting_count;
+                }
+                let servingToggleChecked = '';
+                if (entry.notify_serving) {
+                    servingToggleChecked = 'checked';
+                }
+                let nextToggleChecked = '';
+                if (entry.notify_next) {
+                    nextToggleChecked = 'checked';
+                }
+                let rejoinButtonHtml = '';
+                if (isMissed) {
+                    rejoinButtonHtml = `<button class="btn btn-primary w-full" id="rejoin-btn">Rejoin Queue</button>`;
+                }
+                let leaveButtonHtml = '';
+                if (!isServing) {
+                    leaveButtonHtml = `<button class="btn btn-danger w-full" id="leave-btn">Leave Queue</button>`;
+                }
+
+                entryCards = `
                     <div class="glass-card queue-card">
                         <div class="your-number">
                             <div class="your-number-label">Your Queue Number</div>
@@ -308,18 +442,14 @@
                             <span class="info-row-label">Status</span>
                             <span class="info-row-value">${escapeHtml(entry.status)}</span>
                         </div>
-                        ${isWaiting ? `
-                            <div class="info-row">
-                                <span class="info-row-label">Position</span>
-                                <span class="info-row-value highlight">#${entry.position} in queue</span>
-                            </div>` : ''}
+                        ${positionRow}
                         <div class="info-row">
                             <span class="info-row-label">Waiting ahead</span>
-                            <span class="info-row-value">${data.waiting_count || 0} people</span>
+                            <span class="info-row-value">${waitingCount} people</span>
                         </div>
                         <div class="info-row">
                             <span class="info-row-label">Served so far</span>
-                            <span class="info-row-value">${data.served_count || 0}</span>
+                            <span class="info-row-value">${servedCount}</span>
                         </div>
                     </div>
 
@@ -329,14 +459,14 @@
                             <div class="notify-toggle-row">
                                 <span>Alert when it's my turn</span>
                                 <label class="toggle">
-                                    <input type="checkbox" id="toggle-serving" ${entry.notify_serving ? 'checked' : ''} />
+                                    <input type="checkbox" id="toggle-serving" ${servingToggleChecked} />
                                     <span class="toggle-slider"></span>
                                 </label>
                             </div>
                             <div class="notify-toggle-row">
                                 <span>Alert when I'm next in line</span>
                                 <label class="toggle">
-                                    <input type="checkbox" id="toggle-next" ${entry.notify_next ? 'checked' : ''} />
+                                    <input type="checkbox" id="toggle-next" ${nextToggleChecked} />
                                     <span class="toggle-slider"></span>
                                 </label>
                             </div>
@@ -344,96 +474,189 @@
                     </div>
 
                     <div class="attendee-actions">
-                        ${isMissed ? `<button class="btn btn-primary w-full" id="rejoin-btn">Rejoin Queue</button>` : ''}
-                        ${!isServing ? `<button class="btn btn-danger w-full" id="leave-btn">Leave Queue</button>` : ''}
+                        ${rejoinButtonHtml}
+                        ${leaveButtonHtml}
                     </div>
-                ` : `
+                `;
+            } else {
+                let totalInQueue = 0;
+                let estimatedWaitMinutes = 0;
+                if (display && display.total_in_queue) {
+                    totalInQueue = display.total_in_queue;
+                }
+                if (display && display.est_wait_minutes) {
+                    estimatedWaitMinutes = display.est_wait_minutes;
+                }
+                let closedNote = '';
+                let joinDisabled = '';
+                if (queue.status !== 'open') {
+                    closedNote = `<div style="margin-top:10px;color:var(--status-missed);">This queue is currently closed.</div>`;
+                    joinDisabled = 'disabled';
+                }
+
+                entryCards = `
                     <div class="glass-card queue-card">
                         <div style="text-align:center;padding:10px 0 16px;">
                             <div style="margin-bottom:4px;">${Icons.ticket.replace('width="20" height="20"', 'width="48" height="48"')}</div>
                             <div style="margin:10px 0;font-size:1.05rem;">Join the queue</div>
                             <div class="text-sm text-muted">
-                                ${display?.total_in_queue || 0} people waiting &nbsp;·&nbsp; ~${display?.est_wait_minutes || 0} min
+                                ${totalInQueue} people waiting &nbsp;·&nbsp; ~${estimatedWaitMinutes} min
                             </div>
-                            ${queue.status !== 'open' ? `<div style="margin-top:10px;color:var(--status-missed);">This queue is currently closed.</div>` : ''}
+                            ${closedNote}
                         </div>
                         <div class="info-row"><span class="info-row-label">Queue status</span><span class="info-row-value">${escapeHtml(queue.status)}</span></div>
-                        <div class="info-row"><span class="info-row-label">People served</span><span class="info-row-value">${data.served_count || 0}</span></div>
-                        <button class="btn btn-primary w-full" id="join-btn" style="margin-top:16px;" ${queue.status !== 'open' ? 'disabled' : ''}>
+                        <div class="info-row"><span class="info-row-label">People served</span><span class="info-row-value">${servedCount}</span></div>
+                        <button class="btn btn-primary w-full" id="join-btn" style="margin-top:16px;" ${joinDisabled}>
                             Join Queue
                         </button>
                     </div>
-                `}
-            `;
+                `;
+            }
 
-            document.getElementById('qr-token-copy')?.addEventListener('click', async () => {
-                const token = document.getElementById('qr-token-text')?.textContent;
-                if (!token) return;
-                try {
-                    await navigator.clipboard.writeText(token);
-                    toast('Token copied!', 'success');
-                } catch {
-                    toast('Could not copy, try long-pressing the text', 'info');
-                }
-            });
-
-            document.getElementById('toggle-serving')?.addEventListener('change', async (e) => {
-                await queueApi(`/queues/${qId}/notify-prefs`, { method: 'PUT', body: { notify_serving: e.target.checked } }).catch(() => {});
-            });
-            document.getElementById('toggle-next')?.addEventListener('change', async (e) => {
-                await queueApi(`/queues/${qId}/notify-prefs`, { method: 'PUT', body: { notify_next: e.target.checked } }).catch(() => {});
-            });
-
-            document.getElementById('leave-btn')?.addEventListener('click', async () => {
-                if (!confirm('Leave this queue?')) return;
-                try {
-                    await queueApi(`/queues/${qId}/leave`, { method: 'POST' });
-                    toast('Left queue', 'info');
-                    await refreshStatus(eventCode, queueCode, display);
-                } catch (err) { toast(err.message, 'error'); }
-            });
-
-            document.getElementById('rejoin-btn')?.addEventListener('click', async () => {
-                try {
-                    await queueApi(`/queues/${qId}/leave`, { method: 'POST' });
-                    await queueApi(`/queues/${qId}/join`, { method: 'POST' });
-                    toast('Rejoined queue!', 'success');
-                    await refreshStatus(eventCode, queueCode, display);
-                } catch (err) { toast(err.message, 'error'); }
-            });
-
-            document.getElementById('join-btn')?.addEventListener('click', async () => {
-                const btn = document.getElementById('join-btn');
-                btn.disabled = true;
-                btn.textContent = 'Joining…';
-                try {
-                    await queueApi(`/queues/${qId}/join`, { method: 'POST' });
-                    toast('Joined queue!', 'success');
-                    await refreshStatus(eventCode, queueCode, display);
-                } catch (err) {
-                    toast(err.message, 'error');
-                    btn.disabled = false;
-                    btn.textContent = 'Join Queue';
-                }
-            });
-        }
-
-        // Connect UI
-        function renderConnectUI(display) {
-            const content = document.getElementById('attendee-content');
-            if (!content) return;
-
-            const queueStatus = display?.queue?.status || 'unknown';
             content.innerHTML = `
                 <div class="attendee-header">
-                    <div style="font-size:1.4rem;">${escapeHtml(display?.event?.name || 'Event')}</div>
-                    <div class="text-muted" style="font-size:0.9rem;">${escapeHtml(display?.queue?.name || 'Queue')}</div>
+                    <div style="font-size:1.4rem;">${escapeHtml(eventName)}</div>
+                    <div class="text-muted" style="font-size:0.9rem;">${escapeHtml(queueName)}</div>
+                </div>
+
+                ${statusBanner}
+
+                ${entryCards}
+            `;
+
+            // Tapping the QR token copies it.
+            const qrTokenCopy = document.getElementById('qr-token-copy');
+            if (qrTokenCopy) {
+                qrTokenCopy.addEventListener('click', async () => {
+                    let token;
+                    const qrTokenText = document.getElementById('qr-token-text');
+                    if (qrTokenText) {
+                        token = qrTokenText.textContent;
+                    }
+                    if (!token) {
+                        return;
+                    }
+                    try {
+                        await navigator.clipboard.writeText(token);
+                        toast('Token copied!', 'success');
+                    } catch {
+                        toast('Could not copy, try long-pressing the text', 'info');
+                    }
+                });
+            }
+
+            const servingToggle = document.getElementById('toggle-serving');
+            if (servingToggle) {
+                servingToggle.addEventListener('change', async (event) => {
+                    await queueApi(`/queues/${queueId}/notify-prefs`, { method: 'PUT', body: { notify_serving: event.target.checked } }).catch(() => {});
+                });
+            }
+            const nextToggle = document.getElementById('toggle-next');
+            if (nextToggle) {
+                nextToggle.addEventListener('change', async (event) => {
+                    await queueApi(`/queues/${queueId}/notify-prefs`, { method: 'PUT', body: { notify_next: event.target.checked } }).catch(() => {});
+                });
+            }
+
+            const leaveButton = document.getElementById('leave-btn');
+            if (leaveButton) {
+                leaveButton.addEventListener('click', async () => {
+                    if (!confirm('Leave this queue?')) {
+                        return;
+                    }
+                    try {
+                        await queueApi(`/queues/${queueId}/leave`, { method: 'POST' });
+                        toast('Left queue', 'info');
+                        await refreshStatus(eventCode, queueCode, display);
+                    } catch (error) {
+                        toast(error.message, 'error');
+                    }
+                });
+            }
+
+            // Rejoin: leaves the queue and joins it again, at the back.
+            const rejoinButton = document.getElementById('rejoin-btn');
+            if (rejoinButton) {
+                rejoinButton.addEventListener('click', async () => {
+                    try {
+                        await queueApi(`/queues/${queueId}/leave`, { method: 'POST' });
+                        await queueApi(`/queues/${queueId}/join`, { method: 'POST' });
+                        toast('Rejoined queue!', 'success');
+                        await refreshStatus(eventCode, queueCode, display);
+                    } catch (error) {
+                        toast(error.message, 'error');
+                    }
+                });
+            }
+
+            const joinButton = document.getElementById('join-btn');
+            if (joinButton) {
+                joinButton.addEventListener('click', async () => {
+                    joinButton.disabled = true;
+                    joinButton.textContent = 'Joining…';
+                    try {
+                        await queueApi(`/queues/${queueId}/join`, { method: 'POST' });
+                        toast('Joined queue!', 'success');
+                        await refreshStatus(eventCode, queueCode, display);
+                    } catch (error) {
+                        toast(error.message, 'error');
+                        joinButton.disabled = false;
+                        joinButton.textContent = 'Join Queue';
+                    }
+                });
+            }
+        }
+
+        // Connect UI, for an attendee who isn't signed in (or whose Telegram
+        // isn't linked): the public queue numbers and the Connect Telegram card.
+        function renderConnectUI(display) {
+            const content = document.getElementById('attendee-content');
+            if (!content) {
+                return;
+            }
+
+            let eventName = 'Event';
+            let queueName = 'Queue';
+            let queueStatus = 'unknown';
+            let nowServing = '-';
+            let totalInQueue = 0;
+            let estimatedWaitMinutes = 0;
+            if (display) {
+                if (display.event && display.event.name) {
+                    eventName = display.event.name;
+                }
+                if (display.queue && display.queue.name) {
+                    queueName = display.queue.name;
+                }
+                if (display.queue && display.queue.status) {
+                    queueStatus = display.queue.status;
+                }
+                // The first number being served. Any value but null or
+                // undefined is shown, 0 included.
+                if (display.serving) {
+                    const firstServing = display.serving[0];
+                    if (firstServing !== undefined && firstServing !== null) {
+                        nowServing = firstServing;
+                    }
+                }
+                if (display.total_in_queue) {
+                    totalInQueue = display.total_in_queue;
+                }
+                if (display.est_wait_minutes) {
+                    estimatedWaitMinutes = display.est_wait_minutes;
+                }
+            }
+
+            content.innerHTML = `
+                <div class="attendee-header">
+                    <div style="font-size:1.4rem;">${escapeHtml(eventName)}</div>
+                    <div class="text-muted" style="font-size:0.9rem;">${escapeHtml(queueName)}</div>
                 </div>
                 <div class="glass-card queue-card">
                     <div class="info-row"><span class="info-row-label">Status</span><span class="info-row-value">${escapeHtml(queueStatus)}</span></div>
-                    <div class="info-row"><span class="info-row-label">Now serving</span><span class="info-row-value highlight">${display?.serving?.[0] ?? '-'}</span></div>
-                    <div class="info-row"><span class="info-row-label">Waiting</span><span class="info-row-value">${display?.total_in_queue || 0} people</span></div>
-                    <div class="info-row"><span class="info-row-label">Est. wait</span><span class="info-row-value">~${display?.est_wait_minutes || 0} min</span></div>
+                    <div class="info-row"><span class="info-row-label">Now serving</span><span class="info-row-value highlight">${nowServing}</span></div>
+                    <div class="info-row"><span class="info-row-label">Waiting</span><span class="info-row-value">${totalInQueue} people</span></div>
+                    <div class="info-row"><span class="info-row-label">Est. wait</span><span class="info-row-value">~${estimatedWaitMinutes} min</span></div>
                 </div>
                 <div class="glass-card queue-card" style="margin-top:12px;text-align:center;padding:24px;">
                     <div style="margin-bottom:10px;">${Icons.plane.replace('width="18" height="18"', 'width="40" height="40"')}</div>
@@ -459,30 +682,54 @@
 
         function closeConnectModal() {
             document.getElementById('tg-connect-modal').classList.remove('open');
-            if (pollCodeTimer) { clearInterval(pollCodeTimer); pollCodeTimer = null; }
+            if (pollCodeTimer) {
+                clearInterval(pollCodeTimer);
+                pollCodeTimer = null;
+            }
         }
 
+        // Shows one step of the modal: 'generate' (the Generate code button) or
+        // 'code' (the command, the bot link and the wait for confirmation).
         function showStep(step) {
-            document.getElementById('tg-connect-step-generate').style.display = step === 'generate' ? '' : 'none';
-            document.getElementById('tg-connect-step-code').style.display = step === 'code' ? '' : 'none';
+            let generateStepDisplay = 'none';
+            if (step === 'generate') {
+                generateStepDisplay = '';
+            }
+            let codeStepDisplay = 'none';
+            if (step === 'code') {
+                codeStepDisplay = '';
+            }
+            document.getElementById('tg-connect-step-generate').style.display = generateStepDisplay;
+            document.getElementById('tg-connect-step-code').style.display = codeStepDisplay;
         }
 
         document.getElementById('tg-cancel-btn').addEventListener('click', closeConnectModal);
 
-        document.getElementById('tg-generate-btn').addEventListener('click', async () => {
-            const btn = document.getElementById('tg-generate-btn');
-            btn.disabled = true;
-            btn.textContent = 'Generating…';
+        // Generate code: asks the API for a sign-in code, shows the /attend
+        // command and the link to the bot, then checks every 2 seconds until
+        // the bot confirms the code (the page then signs in by itself) or the
+        // code expires.
+        const generateButton = document.getElementById('tg-generate-btn');
+        generateButton.addEventListener('click', async () => {
+            generateButton.disabled = true;
+            generateButton.textContent = 'Generating…';
 
             try {
-                const res = await fetch('/api/auth/attendee-login', { method: 'POST' });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || 'Failed to generate code');
+                const response = await fetch('/api/auth/attendee-login', { method: 'POST' });
+                const data = await response.json();
+                if (!response.ok) {
+                    let message = 'Failed to generate code';
+                    if (data.error) {
+                        message = data.error;
+                    }
+                    throw new Error(message);
+                }
 
-                const { code, bot_username } = data;
+                const code = data.code;
+                const botUsername = data.bot_username;
                 // A fixed https://t.me/ start, with each value encoded, so
                 // nothing from the API can change the link's scheme or host.
-                const deepLink = `https://t.me/${encodeURIComponent(bot_username)}?start=attend_${encodeURIComponent(code)}`;
+                const deepLink = `https://t.me/${encodeURIComponent(botUsername)}?start=attend_${encodeURIComponent(code)}`;
 
                 const command = `/attend ${code}`;
                 document.getElementById('tg-command-display').textContent = command;
@@ -502,16 +749,16 @@
                 // poll until confirmed
                 pollCodeTimer = setInterval(async () => {
                     try {
-                        const pollRes = await fetch(`/api/auth/attendee-login?code=${code}`);
-                        const pollData = await pollRes.json();
-                        if (pollRes.status === 200 && pollData.token) {
+                        const pollResponse = await fetch(`/api/auth/attendee-login?code=${code}`);
+                        const pollData = await pollResponse.json();
+                        if (pollResponse.status === 200 && pollData.token) {
                             clearInterval(pollCodeTimer);
                             pollCodeTimer = null;
                             setAttendeeToken(pollData.token);
                             closeConnectModal();
                             toast('Connected! Loading your queue…', 'success');
                             await refreshStatus(eventCode, queueCode, null);
-                        } else if (pollRes.status === 410) {
+                        } else if (pollResponse.status === 410) {
                             clearInterval(pollCodeTimer);
                             pollCodeTimer = null;
                             showStep('generate');
@@ -519,21 +766,28 @@
                         }
                     } catch { /* keep polling */ }
                 }, 2000);
-            } catch (err) {
-                toast(err.message, 'error');
+            } catch (error) {
+                toast(error.message, 'error');
             } finally {
-                btn.disabled = false;
-                btn.textContent = 'Generate code';
+                generateButton.disabled = false;
+                generateButton.textContent = 'Generate code';
             }
         });
 
-        document.getElementById('tg-connect-modal').addEventListener('click', (e) => {
-            if (e.target === e.currentTarget) closeConnectModal();
+        // A click on the dark overlay around the modal closes it.
+        document.getElementById('tg-connect-modal').addEventListener('click', (event) => {
+            if (event.target === event.currentTarget) {
+                closeConnectModal();
+            }
         });
 
         window.addEventListener('beforeunload', () => {
-            if (pollTimer) clearInterval(pollTimer);
-            if (pollCodeTimer) clearInterval(pollCodeTimer);
+            if (pollTimer) {
+                clearInterval(pollTimer);
+            }
+            if (pollCodeTimer) {
+                clearInterval(pollCodeTimer);
+            }
         });
     </script>
 
