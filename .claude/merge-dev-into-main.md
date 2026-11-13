@@ -3,7 +3,7 @@
 Context for whoever merges this repo's `dev` branch into `main`. Augy, give this file to Claude: "Read `.claude/merge-dev-into-main.md` and help me merge `dev` into `main`."
 
 - **What's on `dev`:** the readable-refactor chain for help desk #21, one squash commit per job. All 9 jobs have landed.
-- **What merging does:** Merging into `main` deploys the site and API on Vercel. The Telegram bot in `bot/` runs on the VPS and needs a pull and restart there.
+- **What merging does:** Merging into `main` deploys the site and API on Vercel. The Telegram bot in `bot/` runs on the VPS and needs updating and restarting there.
 - **Kept up to date:** the coordinator (Thomas's workspace) updates this file each time a job lands, and once more just before opening the pull request. Last updated 13 Nov, 20:07 SGT.
 
 ## Claude: how to run the merge
@@ -39,6 +39,7 @@ Each job's commit message lists what changed and how it was reviewed. The full b
 
 ```bash
 npm install
+npm run lint        # ESLint: the readability rules
 npm test            # API handlers against a fake Supabase
 npm run test:e2e    # Playwright; run `npx playwright install chromium` once on a new machine
 ```
@@ -47,28 +48,32 @@ They need no `.env`, network or real database.
 
 ## Before merging
 
-- **Webhook or polling bot?** Telegram sends updates to one or the other, never both. Ask Augy which is live. The webhook (`api/telegram/webhook.js`) handles fewer commands and no buttons; the VPS bot in `bot/` handles everything.
+- **Webhook or polling bot?** Telegram sends updates to one or the other, never both. Check with the Bot API's `getWebhookInfo`: an empty `url` means the VPS polling bot is live. The webhook (`api/telegram/webhook.js`) handles fewer commands and no buttons; the VPS bot in `bot/` handles everything.
 - **If the webhook is live:** Augy sets `TELEGRAM_WEBHOOK_SECRET` in Vercel (1-256 characters of A-Z, a-z, 0-9, `_`, `-`) and re-registers the webhook with the same value as `secret_token` (README, Deployment §2; BotFather can't set it). Until both are done, the webhook answers 403 to every update.
-- **Database check:** in Supabase, confirm `gftvqueue_attendee_login_codes.session_token` accepts NULL. Job 02's sign-in change relies on it, and that table isn't in `schema.sql` until job 09.
+- **`TELEGRAM_BOT_USERNAME`:** confirm it's set in Vercel; the attendee page's "Open Telegram Bot" link uses it.
+- **Database check:** in Supabase, confirm `gftvqueue_attendee_login_codes.session_token` accepts NULL. The one-time sign-in token relies on it; if it doesn't, no attendee can sign in.
 
 ## After merging
 
-- **Database:** run `sql/enable-row-level-security.sql` once in the Supabase SQL editor, after the deploy (job 09).
-- If `git diff origin/main origin/dev -- bot/` shows changes (jobs 04 and 08 touch it): pull `main` on the VPS, run `npm install` in the bot's folder (job 04 adds `dotenv`), and restart the Telegram bot.
+- **The bot on the VPS:** get the new `bot/` code there (ask Augy how the bot gets its code; the folder may not be a git clone), run `npm install` in it (it now needs `dotenv`), and restart the bot.
+- **Row-level security:** first confirm Vercel and the VPS bot both use the `service_role` key, not the anon key. Then run `sql/enable-row-level-security.sql` once in the Supabase SQL editor; it doesn't depend on the deploy. Its last query should show every table with row-level security on and no policies. To undo it for a table: `alter table public.<table> disable row level security;` (as the script's header says).
 
 ## Smoke test on the live site
 
 The tests can't reach the real database, logins or messaging, so check these by hand after the deploy:
 
-- Sign in as an operator: My Queues lists only your queues; Operate works (call next, mark missed, mark complete).
-- Sign in as an event editor: the event page, its queues and its editor list load.
+- Sign in as an operator: My Queues lists only your queues; Operate works (call next, mark missed, mark complete); the Completed column shows a count and the last 5.
+- Sign in as an event editor: the event page and its queues load. Its editor list shows "No editors assigned": a known bug, the same on `main` and left for Augy to decide.
 - Join a queue as an attendee, from the page and from the Telegram bot; the attendee sign-in code connects once.
 - The display screen for a queue updates.
-- The Telegram bot answers `/start` and `/status`.
+- The Telegram bot answers `/start` and `/status`; pressing someone else's Leave button says "That isn't your entry".
 
 ## What users may notice
 
-- Queues and events are shown only to people with a role on them; anyone else gets 403. Staff (operators, queue admins) see an empty Events view; My Queues works for them.
-- Editors' emails are no longer sent to the browser.
+- Queues and events are shown only to people with a role on them; anyone else gets 403. Staff still see an empty Events view, as before; My Queues works for them.
+- The Completed column shows a count and the last 5 finished, not every entry.
+- No analytics or ads on the dashboard, sign-in and register pages (the public pages keep them).
+- An attendee's sign-in code connects once.
+- Editors' emails are no longer sent to the browser, and replies carry only what each page shows.
 
 Open questions and anything left for later are on help desk #21's review page, not here.
